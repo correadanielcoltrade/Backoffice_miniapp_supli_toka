@@ -1,0 +1,51 @@
+# ==========================================================================
+# .gitignore RAIZ — red de seguridad global del monorepo (backend + frontend)
+# Complementa a backend/.gitignore y frontend/.gitignore. Ante la duda, ignora.
+# ==========================================================================
+
+# --- SECRETOS: NUNCA subir (en cualquier carpeta) ---
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_rsa.*
+*.crt
+secrets.*
+credentials.*
+# ...pero SI conservar las plantillas de ejemplo (sin secretos)
+!.env.example
+!.env*.example
+
+# --- Documentacion / entregables ---
+/docs/
+
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.log
+db.sqlite3
+media/
+staticfiles/
+
+# --- Datasets grandes (SEPOMEX u otros) ---
+data/*.txt
+data/*.zip
+data/*.csv
+
+# --- Node / Vite (frontend) ---
+node_modules/
+dist/
+*.local
+
+# --- Sistema operativo / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Django
+*.log
+db.sqlite3
+media/
+staticfiles/
+
+# Env
+.env
+
+# Datasets grandes (SEPOMEX u otros) — se cargan a la DB, no se versionan
+data/*.txt
+data/*.zip
+data/*.csv
+
+# IDE
+.vscode/
+.idea/

@@ -6,17 +6,22 @@ Endpoint 14 de Wigilabs: catalogo de ubicaciones de Mexico (SEPOMEX).
   GET /v1/locations/municipalities?state=...              -> cascada: municipios
   GET /v1/locations/suburbs?state=...&municipality=...     -> cascada: colonias
 
-La cascada cubre el caso "no conozco mi CP". Endpoints publicos (sin token).
+La cascada cubre el caso "no conozco mi CP".
+
+Estos endpoints son SIEMPRE publicos (sin token): el catalogo de codigos
+postales (SEPOMEX) es dato publico y no contiene PII. Asi lo pide la spec de
+Wigilabs (Endpoint 14: "Autenticacion: Ninguna"). El catalogo de productos, en
+cambio, si queda protegido (ver views_catalog.py).
 """
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.locations.models import MexicoPostalCode
 
-from .base import MiniAppFlexibleAuthView
+from .base import MiniAppPublicView
 from .envelope import data_response
 
 
-class LocationByZipView(MiniAppFlexibleAuthView):
+class LocationByZipView(MiniAppPublicView):
     def get(self, request, zip_code):
         rows = list(MexicoPostalCode.objects.filter(zip_code=zip_code))
         if not rows:
@@ -33,7 +38,7 @@ class LocationByZipView(MiniAppFlexibleAuthView):
         })
 
 
-class StatesView(MiniAppFlexibleAuthView):
+class StatesView(MiniAppPublicView):
     def get(self, request):
         states = (
             MexicoPostalCode.objects.order_by("state")
@@ -43,7 +48,7 @@ class StatesView(MiniAppFlexibleAuthView):
         return data_response(list(states))
 
 
-class MunicipalitiesView(MiniAppFlexibleAuthView):
+class MunicipalitiesView(MiniAppPublicView):
     def get(self, request):
         state = request.query_params.get("state")
         if not state:
@@ -57,7 +62,7 @@ class MunicipalitiesView(MiniAppFlexibleAuthView):
         return data_response(list(municipalities))
 
 
-class SuburbsView(MiniAppFlexibleAuthView):
+class SuburbsView(MiniAppPublicView):
     def get(self, request):
         state = request.query_params.get("state")
         municipality = request.query_params.get("municipality")

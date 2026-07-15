@@ -56,6 +56,8 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise sirve los archivos estaticos en produccion (justo tras Security).
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -132,6 +134,14 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# WhiteNoise: comprime y cachea los estaticos servidos en produccion.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ------------------------------------------------------------------
@@ -189,6 +199,21 @@ CORS_ALLOWED_ORIGINS = config(
     default="http://localhost:5173,http://127.0.0.1:5173",
     cast=Csv(),
 )
+
+# ------------------------------------------------------------------
+# Produccion / detras de proxy (Render termina el TLS y reenvia)
+# ------------------------------------------------------------------
+# Dominios de confianza para POST con CSRF (ej. login del /admin/ por HTTPS).
+# DEBE incluir el esquema: https://tu-servicio.onrender.com
+CSRF_TRUSTED_ORIGINS = [
+    o for o in config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv()) if o
+]
+
+if not DEBUG:
+    # Render entrega el request por HTTP interno con esta cabecera puesta a https.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # ------------------------------------------------------------------
 # Integracion Super App TOKA

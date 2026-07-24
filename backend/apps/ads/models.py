@@ -2,6 +2,11 @@ from django.db import models
 
 MAX_CAROUSEL_IMAGES = 4
 
+# Dimensiones EXACTAS (px) que debe tener cada banner del carrusel.
+# Cualquier imagen con otro tamano se rechaza al subir (ver serializers.py).
+BANNER_WIDTH = 330
+BANNER_HEIGHT = 192
+
 
 class Carousel(models.Model):
     """
@@ -10,8 +15,10 @@ class Carousel(models.Model):
     """
 
     name = models.CharField("nombre", max_length=120)
-    width = models.PositiveIntegerField("ancho (px)", default=1080)
-    height = models.PositiveIntegerField("alto (px)", default=1080)
+    # Los banners tienen un tamano fijo (BANNER_WIDTH x BANNER_HEIGHT), asi que
+    # el carrusel usa esas mismas dimensiones por defecto; ya no se piden al crear.
+    width = models.PositiveIntegerField("ancho (px)", default=BANNER_WIDTH)
+    height = models.PositiveIntegerField("alto (px)", default=BANNER_HEIGHT)
     is_active = models.BooleanField("activo", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

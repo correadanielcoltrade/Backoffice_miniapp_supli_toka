@@ -142,6 +142,34 @@ STORAGES = {
     },
 }
 
+# ------------------------------------------------------------------
+# Almacenamiento de imagenes en Cloudflare R2 (S3-compatible)
+# ------------------------------------------------------------------
+# Cuando USE_R2=True, las imagenes cargadas desde el back office (banners,
+# iconos de categorias, logos de marcas e imagenes de productos) se suben a R2
+# y sus .url apuntan al dominio publico -> Wigilabs las consume sin URLs rotas.
+USE_R2 = config("USE_R2", default=False, cast=bool)
+if USE_R2:
+    R2_ACCOUNT_ID = config("R2_ACCOUNT_ID")
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": config("R2_BUCKET"),
+            "endpoint_url": f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+            "access_key": config("R2_ACCESS_KEY_ID"),
+            "secret_key": config("R2_SECRET_ACCESS_KEY"),
+            # Dominio publico del bucket (pub-xxxx.r2.dev), sin https://.
+            "custom_domain": config("R2_PUBLIC_DOMAIN"),
+            "region_name": "auto",
+            "signature_version": "s3v4",
+            # R2 no usa ACLs y servimos via URL publica -> URLs limpias sin firma.
+            "default_acl": None,
+            "querystring_auth": False,
+            # No sobrescribir: si suben dos archivos con el mismo nombre, renombra.
+            "file_overwrite": False,
+        },
+    }
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ------------------------------------------------------------------

@@ -7,30 +7,76 @@ import { Switch } from "../components/Switch";
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api")
   .replace(/\/api\/?$/, "");
 
+// Dimensiones EXACTAS que debe tener cada banner (deben coincidir con
+// BANNER_WIDTH/BANNER_HEIGHT del backend en apps/ads/models.py).
+const BANNER_W = 330;
+const BANNER_H = 192;
+
+// Lee el tamano real de la imagen en el navegador antes de subirla.
+// Devuelve un mensaje de error si no mide BANNER_W x BANNER_H, o null si es valida.
+function checkBannerDimensions(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (img.naturalWidth !== BANNER_W || img.naturalHeight !== BANNER_H) {
+        resolve(
+          `El banner debe medir exactamente ${BANNER_W}×${BANNER_H} px. ` +
+            `Esta imagen mide ${img.naturalWidth}×${img.naturalHeight} px.`
+        );
+      } else {
+        resolve(null);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve("No se pudo leer la imagen seleccionada.");
+    };
+    img.src = url;
+  });
+}
+
+// Si la imagen ya es una URL absoluta (R2/Cloudflare) la usa tal cual;
+// si es una ruta relativa (media local antigua) le antepone el origen del API.
+function imgUrl(path: string): string {
+  return path.startsWith("http") ? path : API_ORIGIN + path;
+}
+
 export default function Ads() {
   const { data, loading, error, reload } = useList<Carousel>("/carousels/");
   const [name, setName] = useState("");
-  const [width, setWidth] = useState(1080);
-  const [height, setHeight] = useState(1080);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
 
   async function createCarousel(e: React.FormEvent) {
     e.preventDefault();
-    await api.post("/carousels/", { name, width, height });
+    await api.post("/carousels/", { name });
     setName("");
     reload();
   }
 
   async function uploadImage(carouselId: number, file: File, position: number) {
+    setActionError("");
+    const dimError = await checkBannerDimensions(file);
+    if (dimError) {
+      setActionError(dimError);
+      return;
+    }
     const fd = new FormData();
     fd.append("carousel", String(carouselId));
     fd.append("image", file);
     fd.append("position", String(position));
-    await api.post("/carousel-images/", fd, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    reload();
+    try {
+      await api.post("/carousel-images/", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      reload();
+    } catch {
+      setActionError(
+        `No se pudo subir el banner. Verifica que la imagen mida ${BANNER_W}×${BANNER_H} px.`
+      );
+    }
   }
 
   async function updateLink(imageId: number, url: string) {
@@ -88,22 +134,6 @@ export default function Ads() {
           <div className="field" style={{ margin: 0 }}>
             <label>Nombre</label>
             <input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Ancho (px)</label>
-            <input
-              type="number"
-              value={width}
-              onChange={(e) => setWidth(Number(e.target.value))}
-            />
-          </div>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Alto (px)</label>
-            <input
-              type="number"
-              value={height}
-              onChange={(e) => setHeight(Number(e.target.value))}
-            />
           </div>
           <button className="btn">Crear</button>
         </form>
@@ -181,7 +211,7 @@ export default function Ads() {
                     {img ? (
                       <>
                         <img
-                          src={API_ORIGIN + img.image}
+                          src={imgUrl(img.image)}
                           alt=""
                           style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         />
@@ -209,7 +239,13 @@ export default function Ads() {
                       </>
                     ) : (
                       <label style={{ textAlign: "center", cursor: "pointer", margin: 0 }}>
-                        <span className="muted">+ Foto {slot + 1}</span>
+                        <span className="muted">
+                          + Foto {slot + 1}
+                          <br />
+                          <small style={{ fontSize: 11 }}>
+                            {BANNER_W}×{BANNER_H} px
+                          </small>
+                        </span>
                         <input
                           type="file"
                           accept="image/*"
@@ -242,7 +278,11 @@ export default function Ads() {
             })}
           </div>
           <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
-            Máximo 4 banners por carrusel. El enlace se guarda al salir del campo.
+            Máximo 4 banners por carrusel. Cada imagen debe medir exactamente{" "}
+            <b>
+              {BANNER_W}×{BANNER_H} px
+            </b>{" "}
+            o será rechazada. El enlace se guarda al salir del campo.
           </p>
         </div>
       ))}

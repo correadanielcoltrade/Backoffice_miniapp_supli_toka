@@ -36,15 +36,24 @@ from .toka_utils import toka_error_to_response
 
 def _payment_amount(data, order):
     """
-    Toka devuelve paymentAmount.value en CENTAVOS; el contrato con Wigilabs pide
-    el monto en MXN. Si Toka no lo trae, se usa el total del pedido.
+    Toka devuelve paymentAmount en CENTAVOS; el contrato con Wigilabs pide el
+    monto en MXN. Toka lo manda en DOS formas segun el endpoint:
+      - objeto:  {"value": 2000, "currency": "MXN"}  (createOrder / notify)
+      - entero:  2000                                 (query/inquiry de pago)
+    Se soportan ambos. Si Toka no lo trae, se usa el total del pedido.
     """
-    block = data.get("paymentAmount") or {}
-    value = block.get("value")
-    if value is None:
+    block = data.get("paymentAmount")
+    if isinstance(block, dict):
+        value = block.get("value")
+        currency = block.get("currency", "MXN")
+    else:
+        # Entero/numero plano (o None si no viene).
+        value = block
+        currency = "MXN"
+    if value is None or value == "":
         return {"value": str(order.total_amount), "currency": "MXN"}
     pesos = (Decimal(str(value)) / 100).quantize(Decimal("0.01"))
-    return {"value": str(pesos), "currency": block.get("currency", "MXN")}
+    return {"value": str(pesos), "currency": currency}
 
 
 class _TokaRejected(Exception):

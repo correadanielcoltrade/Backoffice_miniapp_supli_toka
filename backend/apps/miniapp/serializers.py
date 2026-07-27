@@ -31,6 +31,29 @@ def _all_images(request, product):
     return urls
 
 
+def _specs_as_strings(specifications):
+    """
+    Aplana las especificaciones a una lista de strings (como `features`).
+    En la BD se guardan como [{"key": ..., "value": ...}] (asi las edita el back
+    office), pero Wigilabs las quiere como ["Sabor: Cola", ...]. Convierte cada
+    par a "key: value" y tolera items que ya vengan como string suelto.
+    """
+    result = []
+    for item in specifications or []:
+        if isinstance(item, dict):
+            key = str(item.get("key", "")).strip()
+            value = str(item.get("value", "")).strip()
+            if key and value:
+                result.append(f"{key}: {value}")
+            elif key or value:
+                result.append(key or value)
+        elif item is not None:
+            text = str(item).strip()
+            if text:
+                result.append(text)
+    return result
+
+
 def _stock(product):
     inv = getattr(product, "inventory", None)
     return inv.units_in_stock if inv else 0
@@ -116,7 +139,7 @@ class ProductDetailSerializer(serializers.Serializer):
     brand = serializers.SerializerMethodField()
     description = serializers.CharField(source="long_description", allow_blank=True)
     features = serializers.JSONField()
-    specifications = serializers.JSONField()
+    specifications = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
     stockAvailable = serializers.SerializerMethodField()
     showStock = serializers.BooleanField(source="show_stock")
@@ -125,6 +148,9 @@ class ProductDetailSerializer(serializers.Serializer):
 
     def get_brand(self, obj):
         return obj.brand.name if obj.brand_id else ""
+
+    def get_specifications(self, obj):
+        return _specs_as_strings(obj.specifications)
 
     def get_price(self, obj):
         return _price(obj)

@@ -3,39 +3,14 @@ import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Carousel } from "../api/types";
 import { Switch } from "../components/Switch";
+import { IMAGE_RULES, checkImageDimensions, ruleHint } from "../lib/imageValidation";
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api")
   .replace(/\/api\/?$/, "");
 
-// Dimensiones EXACTAS que debe tener cada banner (deben coincidir con
-// BANNER_WIDTH/BANNER_HEIGHT del backend en apps/ads/models.py).
-const BANNER_W = 330;
-const BANNER_H = 192;
-
-// Lee el tamano real de la imagen en el navegador antes de subirla.
-// Devuelve un mensaje de error si no mide BANNER_W x BANNER_H, o null si es valida.
-function checkBannerDimensions(file: File): Promise<string | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      if (img.naturalWidth !== BANNER_W || img.naturalHeight !== BANNER_H) {
-        resolve(
-          `El banner debe medir exactamente ${BANNER_W}×${BANNER_H} px. ` +
-            `Esta imagen mide ${img.naturalWidth}×${img.naturalHeight} px.`
-        );
-      } else {
-        resolve(null);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve("No se pudo leer la imagen seleccionada.");
-    };
-    img.src = url;
-  });
-}
+// Dimensiones EXACTAS del banner (deben coincidir con BANNER_WIDTH/BANNER_HEIGHT
+// del backend en apps/ads/models.py). Fuente unica en lib/imageValidation.
+const BANNER_RULE = IMAGE_RULES.banner;
 
 // Si la imagen ya es una URL absoluta (R2/Cloudflare) la usa tal cual;
 // si es una ruta relativa (media local antigua) le antepone el origen del API.
@@ -58,7 +33,7 @@ export default function Ads() {
 
   async function uploadImage(carouselId: number, file: File, position: number) {
     setActionError("");
-    const dimError = await checkBannerDimensions(file);
+    const dimError = await checkImageDimensions(file, BANNER_RULE);
     if (dimError) {
       setActionError(dimError);
       return;
@@ -74,7 +49,7 @@ export default function Ads() {
       reload();
     } catch {
       setActionError(
-        `No se pudo subir el banner. Verifica que la imagen mida ${BANNER_W}×${BANNER_H} px.`
+        `No se pudo subir el banner. Verifica que la imagen mida ${BANNER_RULE.width}×${BANNER_RULE.height} px.`
       );
     }
   }
@@ -243,7 +218,7 @@ export default function Ads() {
                           + Foto {slot + 1}
                           <br />
                           <small style={{ fontSize: 11 }}>
-                            {BANNER_W}×{BANNER_H} px
+                            {ruleHint(BANNER_RULE)}
                           </small>
                         </span>
                         <input
@@ -280,7 +255,7 @@ export default function Ads() {
           <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
             Máximo 4 banners por carrusel. Cada imagen debe medir exactamente{" "}
             <b>
-              {BANNER_W}×{BANNER_H} px
+              {BANNER_RULE.width}×{BANNER_RULE.height} px
             </b>{" "}
             o será rechazada. El enlace se guarda al salir del campo.
           </p>

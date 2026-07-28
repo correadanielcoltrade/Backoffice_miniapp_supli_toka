@@ -3,9 +3,12 @@ import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Category } from "../api/types";
 import { Switch } from "../components/Switch";
+import { IMAGE_RULES, checkImageDimensions, ruleHint } from "../lib/imageValidation";
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api")
   .replace(/\/api\/?$/, "");
+
+const ICON_RULE = IMAGE_RULES.categoryIcon;
 
 const EMPTY = { name: "", sort_order: "0", is_active: true };
 
@@ -47,6 +50,21 @@ export default function Categories() {
     setFormError("");
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function pickIcon(file: File | null) {
+    setFormError("");
+    if (!file) {
+      setIcon(null);
+      return;
+    }
+    const dimError = await checkImageDimensions(file, ICON_RULE);
+    if (dimError) {
+      setFormError(dimError);
+      setIcon(null);
+      return;
+    }
+    setIcon(file);
   }
 
   async function save(e: React.FormEvent) {
@@ -153,7 +171,12 @@ export default function Categories() {
             </div>
           </div>
 
-          <label style={{ marginTop: 6 }}>Ícono de la categoría</label>
+          <label style={{ marginTop: 6 }}>
+            Ícono de la categoría{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              — {ruleHint(ICON_RULE)}
+            </span>
+          </label>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
             <label
               style={{
@@ -183,7 +206,7 @@ export default function Categories() {
                 type="file"
                 accept="image/*"
                 style={{ display: "none" }}
-                onChange={(e) => setIcon(e.target.files?.[0] ?? null)}
+                onChange={(e) => pickIcon(e.target.files?.[0] ?? null)}
               />
             </label>
             {editingId && (

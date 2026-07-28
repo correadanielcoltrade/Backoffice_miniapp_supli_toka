@@ -1,5 +1,21 @@
 from django.db import models
 
+# ------------------------------------------------------------------
+# Dimensiones (px) que debe cumplir cada tipo de imagen del catalogo.
+# Se validan al subir (ver serializers.py) para que la mini app reciba
+# imagenes uniformes. Deben coincidir con las constantes del frontend.
+# ------------------------------------------------------------------
+# Icono de categoria: cuadrado exacto.
+CATEGORY_ICON_WIDTH = 100
+CATEGORY_ICON_HEIGHT = 100
+# Logo de marca: ancho exacto; alto variable segun el aspecto real del logo,
+# pero sin superar el tope (evita logos desproporcionadamente altos).
+BRAND_LOGO_WIDTH = 320
+BRAND_LOGO_MAX_HEIGHT = 116
+# Imagen de producto: cuadrado exacto.
+PRODUCT_IMAGE_WIDTH = 1400
+PRODUCT_IMAGE_HEIGHT = 1400
+
 
 class Category(models.Model):
     """Categoria de producto. Expone a la mini app: categoryId, sortOrder, name, iconUrl."""

@@ -4,8 +4,8 @@ MAX_CAROUSEL_IMAGES = 4
 
 # Dimensiones EXACTAS (px) que debe tener cada banner del carrusel.
 # Cualquier imagen con otro tamano se rechaza al subir (ver serializers.py).
-BANNER_WIDTH = 330
-BANNER_HEIGHT = 192
+BANNER_WIDTH = 1380
+BANNER_HEIGHT = 440
 
 
 class Carousel(models.Model):

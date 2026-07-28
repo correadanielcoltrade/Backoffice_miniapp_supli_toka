@@ -3,9 +3,12 @@ import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Brand } from "../api/types";
 import { Switch } from "../components/Switch";
+import { IMAGE_RULES, checkImageDimensions, ruleHint } from "../lib/imageValidation";
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api")
   .replace(/\/api\/?$/, "");
+
+const LOGO_RULE = IMAGE_RULES.brandLogo;
 
 const EMPTY = { name: "", sort_order: "0", is_active: true };
 
@@ -47,6 +50,21 @@ export default function Brands() {
     setFormError("");
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function pickLogo(file: File | null) {
+    setFormError("");
+    if (!file) {
+      setLogo(null);
+      return;
+    }
+    const dimError = await checkImageDimensions(file, LOGO_RULE);
+    if (dimError) {
+      setFormError(dimError);
+      setLogo(null);
+      return;
+    }
+    setLogo(file);
   }
 
   async function save(e: React.FormEvent) {
@@ -153,7 +171,12 @@ export default function Brands() {
             </div>
           </div>
 
-          <label style={{ marginTop: 6 }}>Logo de la marca</label>
+          <label style={{ marginTop: 6 }}>
+            Logo de la marca{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              — {ruleHint(LOGO_RULE)}
+            </span>
+          </label>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
             <label
               style={{
@@ -183,7 +206,7 @@ export default function Brands() {
                 type="file"
                 accept="image/*"
                 style={{ display: "none" }}
-                onChange={(e) => setLogo(e.target.files?.[0] ?? null)}
+                onChange={(e) => pickLogo(e.target.files?.[0] ?? null)}
               />
             </label>
             {editingId && (

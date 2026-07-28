@@ -2,6 +2,9 @@ import { useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Brand, Category, Product, ProductSpec } from "../api/types";
+import { IMAGE_RULES, checkImageDimensions, ruleHint } from "../lib/imageValidation";
+
+const IMAGE_RULE = IMAGE_RULES.productImage;
 
 const EMPTY = {
   description: "",
@@ -140,10 +143,20 @@ export default function Catalog() {
   const [images, setImages] = useState<(File | null)[]>([null, null, null, null]);
   const [currentImages, setCurrentImages] = useState<string[]>([]);
 
-  function setImage(i: number, file: File | null) {
-    const next = [...images];
-    next[i] = file;
-    setImages(next);
+  async function setImage(i: number, file: File | null) {
+    setFormError("");
+    if (file) {
+      const dimError = await checkImageDimensions(file, IMAGE_RULE);
+      if (dimError) {
+        setFormError(dimError);
+        return; // no aceptar la imagen con tamano invalido
+      }
+    }
+    setImages((prev) => {
+      const next = [...prev];
+      next[i] = file;
+      return next;
+    });
   }
 
   function openCreate() {
@@ -468,11 +481,14 @@ export default function Catalog() {
           </div>
 
           <label style={{ marginTop: 6 }}>
-            Imágenes del producto (hasta 4)
+            Imágenes del producto (hasta 4){" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              — {ruleHint(IMAGE_RULE)}
+            </span>
             {editingId && (
               <span className="muted" style={{ fontWeight: 400 }}>
                 {" "}
-                — deja una casilla vacía para conservar la imagen actual
+                · deja una casilla vacía para conservar la imagen actual
               </span>
             )}
           </label>

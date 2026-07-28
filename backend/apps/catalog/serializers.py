@@ -2,7 +2,67 @@ import json
 
 from rest_framework import serializers
 
-from .models import Brand, Category, Product
+from .models import (
+    BRAND_LOGO_MAX_HEIGHT,
+    BRAND_LOGO_WIDTH,
+    CATEGORY_ICON_HEIGHT,
+    CATEGORY_ICON_WIDTH,
+    PRODUCT_IMAGE_HEIGHT,
+    PRODUCT_IMAGE_WIDTH,
+    Brand,
+    Category,
+    Product,
+)
+
+
+def _image_size(image):
+    """
+    Devuelve (ancho, alto) de un archivo de imagen subido. Reutiliza la
+    instancia Pillow que el ImageField ya abrio al validar; si no esta
+    disponible, abre el archivo y deja el puntero en 0.
+    """
+    pil = getattr(image, "image", None)
+    if pil is not None:
+        return pil.size
+    from PIL import Image
+
+    image.seek(0)
+    with Image.open(image) as img:
+        size = img.size
+    image.seek(0)
+    return size
+
+
+def validate_exact_dimensions(image, field, label, exp_width, exp_height):
+    """Exige que la imagen mida EXACTAMENTE exp_width x exp_height px."""
+    if image is None:
+        return
+    width, height = _image_size(image)
+    if (width, height) != (exp_width, exp_height):
+        raise serializers.ValidationError({
+            field: (
+                f"{label} debe medir exactamente {exp_width}x{exp_height} px. "
+                f"La imagen que subiste mide {width}x{height} px."
+            )
+        })
+
+
+def validate_logo_dimensions(image, field="logo"):
+    """
+    Logo de marca: ancho EXACTO (BRAND_LOGO_WIDTH) y alto variable segun el
+    aspecto real del logo, sin superar BRAND_LOGO_MAX_HEIGHT px.
+    """
+    if image is None:
+        return
+    width, height = _image_size(image)
+    if width != BRAND_LOGO_WIDTH or height > BRAND_LOGO_MAX_HEIGHT:
+        raise serializers.ValidationError({
+            field: (
+                f"El logo debe medir {BRAND_LOGO_WIDTH} px de ancho y hasta "
+                f"{BRAND_LOGO_MAX_HEIGHT} px de alto. La imagen que subiste mide "
+                f"{width}x{height} px."
+            )
+        })
 
 
 class JSONTextField(serializers.JSONField):
@@ -37,12 +97,24 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ["id", "name", "sort_order", "icon", "is_active", "created_at"]
         read_only_fields = ["id", "created_at"]
 
+    def validate(self, attrs):
+        # En un PATCH sin icono nuevo, attrs["icon"] no viene y no se valida.
+        validate_exact_dimensions(
+            attrs.get("icon"), "icon", "El icono de la categoria",
+            CATEGORY_ICON_WIDTH, CATEGORY_ICON_HEIGHT,
+        )
+        return attrs
+
 
 class BrandSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
         fields = ["id", "name", "sort_order", "logo", "is_active", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+    def validate(self, attrs):
+        validate_logo_dimensions(attrs.get("logo"))
+        return attrs
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -90,6 +162,17 @@ class ProductSerializer(serializers.ModelSerializer):
             "id", "brand_name", "category_name", "units_in_stock",
             "images", "created_at", "updated_at",
         ]
+
+    def validate(self, attrs):
+        # Cada una de las 4 imagenes (las que vengan en esta peticion) debe ser
+        # un cuadrado exacto PRODUCT_IMAGE_WIDTH x PRODUCT_IMAGE_HEIGHT.
+        for i in (1, 2, 3, 4):
+            field = f"image{i}"
+            validate_exact_dimensions(
+                attrs.get(field), field, f"La imagen {i} del producto",
+                PRODUCT_IMAGE_WIDTH, PRODUCT_IMAGE_HEIGHT,
+            )
+        return attrs
 
     def get_brand_name(self, obj) -> str:
         return obj.brand.name if obj.brand_id else ""

@@ -604,6 +604,14 @@ table.data tbody tr:hover td {
   background: #f8fbff;
 }
 
+/* Lineas apiladas dentro de una celda (Producto / Cantidad / SKU de un pedido).
+   Mismo gap en las 3 columnas para que cada item quede alineado fila por fila. */
+.item-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

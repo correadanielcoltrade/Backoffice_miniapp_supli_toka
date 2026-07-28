@@ -141,7 +141,7 @@ export default function Orders() {
     loadOrders("", "");
   }
 
-  async function downloadCsv() {
+  async function downloadExcel() {
     setDownloading(true);
     try {
       const res = await api.get(
@@ -151,7 +151,7 @@ export default function Orders() {
       const url = URL.createObjectURL(res.data as Blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "pedidos.csv";
+      a.download = "pedidos.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -420,10 +420,10 @@ export default function Orders() {
             <button
               type="button"
               className="btn"
-              onClick={downloadCsv}
+              onClick={downloadExcel}
               disabled={downloading || orders.length === 0}
             >
-              {downloading ? "Descargando…" : "⬇ Descargar CSV"}
+              {downloading ? "Descargando…" : "⬇ Descargar Excel"}
             </button>
           </div>
         </div>
@@ -464,6 +464,9 @@ export default function Orders() {
                   <th>Ciudad / Alcaldía</th>
                   <th>Estado</th>
                   <th>Código postal</th>
+                  <th>Producto</th>
+                  <th>SKU</th>
+                  <th>Cantidad</th>
                   <th>Total</th>
                   <th>Estado pedido</th>
                 </tr>
@@ -488,6 +491,45 @@ export default function Orders() {
                     <td>{o.city_alcaldia}</td>
                     <td>{o.state}</td>
                     <td>{o.postal_code}</td>
+                    {/* Producto / Cantidad / SKU: una linea por item, alineadas
+                        entre las 3 columnas (mismo orden y alto de fila). */}
+                    <td>
+                      {o.items?.length ? (
+                        <div className="item-lines" style={{ minWidth: 160 }}>
+                          {o.items.map((it) => (
+                            <span key={it.id}>{it.product_description}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {o.items?.length ? (
+                        <div className="item-lines">
+                          {o.items.map((it) => (
+                            <span key={it.id} style={{ whiteSpace: "nowrap" }}>
+                              {it.sku}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {o.items?.length ? (
+                        <div className="item-lines" style={{ textAlign: "center" }}>
+                          {o.items.map((it) => (
+                            <span key={it.id}>
+                              <b>{it.quantity}</b>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>${Number(o.total_amount).toLocaleString("es-MX")}</td>
                     <td>
                       <span className={"badge " + (STATUS_BADGE[o.status] ?? "gray")}>
@@ -498,7 +540,7 @@ export default function Orders() {
                 ))}
                 {orders.length === 0 && (
                   <tr>
-                    <td colSpan={12} className="muted">
+                    <td colSpan={15} className="muted">
                       Aún no hay pedidos registrados.
                     </td>
                   </tr>

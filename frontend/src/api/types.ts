@@ -99,6 +99,16 @@ export interface Customer {
   addresses: CustomerAddress[];
 }
 
+export interface OrderItem {
+  id: number;
+  product: number;
+  sku: string;
+  product_description: string;
+  quantity: number;
+  unit_price: string;
+  subtotal: string;
+}
+
 export interface Order {
   id: number;
   customer: number;
@@ -115,6 +125,7 @@ export interface Order {
   status_display: string;
   total_amount: string;
   stock_deducted: boolean;
+  items: OrderItem[];
   created_at: string;
 }
 

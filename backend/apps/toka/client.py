@@ -267,6 +267,19 @@ class TokaClient:
             raise TokaAPIError("Se requiere paymentId para consultar el pago.")
         return self.post("/v1/acquiring/payment/inquiry", {"paymentId": payment_id})
 
+    def close_payment(self, *, payment_id: str) -> TokaResponse:
+        """
+        POST /v1/acquiring/payment/close
+
+        Cancela una orden de pago que NO se completo (error de Toka o el usuario
+        cancelo la operacion). paymentId es el id que devolvio create_payment.
+        Libera la orden del lado de Toka para que el usuario pueda iniciar otra
+        compra sin esperar a que expire por si sola.
+        """
+        if not payment_id:
+            raise TokaAPIError("Se requiere paymentId para cerrar el pago.")
+        return self.post("/v1/acquiring/payment/close", {"paymentId": payment_id})
+
     @classmethod
     def default_expiry_time(cls) -> str:
         """order.expiryTime en el formato que exige Toka: 'YYYY-MM-DD hh:mm:ss'."""

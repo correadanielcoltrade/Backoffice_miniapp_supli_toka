@@ -98,3 +98,23 @@ def mark_order_payment_failed(order, *, payment_number, amount=None, raw_payload
             "raw_payload": raw_payload or {},
         },
     )
+
+
+def mark_order_cancelled(order):
+    """
+    Marca un pedido PENDING como CANCELLED y sus transacciones PENDING como
+    FAILED. Sirve cuando el pago no se completa (error de Toka o el usuario
+    cancela): libera el bloqueo de _find_duplicate_pending para permitir una
+    nueva compra. No toca inventario (un pedido PENDING nunca descuento stock).
+    Idempotente a nivel de datos.
+    """
+    with transaction.atomic():
+        locked = Order.objects.select_for_update().get(pk=order.pk)
+        if locked.status != Order.Status.CANCELLED:
+            locked.status = Order.Status.CANCELLED
+            locked.save(update_fields=["status", "updated_at"])
+        locked.payments.filter(
+            status=PaymentTransaction.Status.PENDING
+        ).update(
+            status=PaymentTransaction.Status.FAILED, updated_at=timezone.now()
+        )

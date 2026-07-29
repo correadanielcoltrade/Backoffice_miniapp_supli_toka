@@ -28,6 +28,7 @@ from .envelope import data_response, error_response
 from .services_payment import (
     TOKA_TO_PAYMENT_STATUS,
     confirm_order_paid,
+    mark_order_cancelled,
     mark_order_payment_failed,
 )
 from .toka_utils import toka_error_to_response
@@ -274,3 +275,65 @@ class PaymentStatusView(MiniAppAuthView):
                 data.get("paymentResultMessage") or resp.result_message
             ),
         })
+
+
+def _cancel_payload(order, toka_close):
+    return {
+        "orderId": str(order.id),
+        "orderNumber": order.order_number,
+        "status": Order.Status.CANCELLED,
+        "tokaClose": toka_close,
+    }
+
+
+class CancelOrderView(MiniAppAuthView):
+    """
+    POST /v1/orders/{orderId}/cancel
+
+    Cancela un pedido cuyo pago NO se completo (error de Toka o el usuario
+    cancelo). Cierra el pago en Toka (best-effort) y marca el pedido CANCELLED,
+    liberando el bloqueo de idempotencia (_find_duplicate_pending) para que el
+    usuario pueda iniciar otra compra de inmediato.
+
+    Es POST (no DELETE) porque Alipay solo soporta GET/POST.
+    """
+
+    def post(self, request, order_id):
+        customer = request.user
+        try:
+            order = customer.orders.get(pk=order_id)
+        except (Order.DoesNotExist, ValueError, TypeError):
+            raise NotFound("Pedido no encontrado.")
+
+        # Idempotente: si ya esta cancelado, exito (sin volver a llamar a Toka).
+        if order.status == Order.Status.CANCELLED:
+            return data_response(_cancel_payload(order, "already"))
+
+        # No se cancela un pedido ya pagado o en proceso de entrega.
+        if order.status != Order.Status.PENDING:
+            return error_response(
+                "ORDER_NOT_CANCELABLE",
+                "Solo se puede cancelar un pedido pendiente de pago.",
+                status=http_status.HTTP_409_CONFLICT,
+            )
+
+        # Cerrar el pago en Toka. Best-effort: si Toka no responde igual
+        # cancelamos localmente (ademas la orden en Toka expira sola por
+        # expiryTime); asi el usuario nunca queda bloqueado.
+        toka_close = "skipped"
+        payment = order.payments.order_by("-created_at").first()
+        if payment and payment.provider_payment_id:
+            try:
+                resp = TokaClient().close_payment(
+                    payment_id=payment.provider_payment_id
+                )
+                toka_close = (
+                    "closed"
+                    if resp.result_status in ("S", "A", "")
+                    else f"rejected:{resp.result_code}"
+                )
+            except TokaAPIError:
+                toka_close = "unavailable"
+
+        mark_order_cancelled(order)
+        return data_response(_cancel_payload(order, toka_close))

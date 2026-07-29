@@ -22,7 +22,7 @@ from .views_location import (
     SuburbsView,
 )
 from .views_order import OrderDetailView, OrderHistoryView
-from .views_payment import CreateOrderView, PaymentStatusView
+from .views_payment import CancelOrderView, CreateOrderView, PaymentStatusView
 
 urlpatterns = [
     # Endpoint 1 - Intercambio de sesion
@@ -77,6 +77,13 @@ urlpatterns = [
         "orders/<int:order_id>/paymentStatus",
         PaymentStatusView.as_view(),
         name="miniapp-payment-status",
+    ),
+    # Cancelar un pedido cuyo pago no se completo (cierra el pago en Toka y
+    # libera el bloqueo de idempotencia). POST porque Alipay no soporta DELETE.
+    path(
+        "orders/<int:order_id>/cancel",
+        CancelOrderView.as_view(),
+        name="miniapp-order-cancel",
     ),
     # Endpoint 15 - Detalle de un pedido
     path(

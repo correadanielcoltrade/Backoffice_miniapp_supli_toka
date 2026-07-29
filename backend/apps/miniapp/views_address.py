@@ -1,9 +1,13 @@
 """
 Endpoints 11-13 de Wigilabs: libreta de direcciones del usuario (formato MX).
 
-  GET   /v1/users/me/addresses            -> lista (max 3)
-  POST  /v1/users/me/addresses            -> crear (201, max 3)
-  PATCH /v1/users/me/addresses/{id}       -> editar parcial
+  GET          /v1/users/me/addresses       -> lista (max 3)
+  POST         /v1/users/me/addresses       -> crear (201, max 3)
+  PATCH | POST /v1/users/me/addresses/{id}  -> editar parcial
+
+El {id} en la ruta distingue "editar" (con id) de "crear" (sin id), por eso
+POST puede servir para ambos sin ambiguedad. Se acepta POST en la edicion
+porque Alipay (plataforma del mini-program) no soporta PATCH/PUT.
 
 Todos requieren Bearer sessionToken; operan solo sobre las direcciones del
 cliente autenticado.
@@ -56,7 +60,8 @@ class AddressListCreateView(MiniAppAuthView):
 
 
 class AddressDetailView(MiniAppAuthView):
-    def patch(self, request, address_id):
+    def _update(self, request, address_id):
+        """Edicion parcial de una direccion del cliente autenticado."""
         customer = request.user
         address = _get_owned(customer, address_id)
         ser = AddressSerializer(address, data=request.data, partial=True)
@@ -64,3 +69,12 @@ class AddressDetailView(MiniAppAuthView):
         address = ser.save()
         _sync_default(customer, address)
         return data_response(AddressSerializer(address).data)
+
+    def patch(self, request, address_id):
+        return self._update(request, address_id)
+
+    def post(self, request, address_id):
+        # Alipay (plataforma del mini-program) solo soporta GET y POST, no
+        # PATCH/PUT. Aceptamos POST sobre /addresses/{id} como equivalente a la
+        # edicion parcial, para que el mini-program pueda actualizar direcciones.
+        return self._update(request, address_id)

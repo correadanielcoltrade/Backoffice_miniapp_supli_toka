@@ -75,11 +75,13 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
     customer_name = serializers.CharField(source="customer.full_name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    order_number = serializers.CharField(read_only=True)
 
     class Meta:
         model = Order
         fields = [
             "id",
+            "order_number",
             "customer",
             "customer_name",
             "saved_address",

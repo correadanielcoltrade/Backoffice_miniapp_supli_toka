@@ -10,7 +10,6 @@ Toka usa create_payment/query_payment del TokaClient; mientras no exista el
 appId del mini-program (TOKA_APP_ID) esas llamadas responden TOKA_UNAVAILABLE,
 igual que Apply Token / Query User Info. Todo lo demas ya queda operativo.
 """
-import uuid
 from datetime import timedelta
 from decimal import Decimal
 
@@ -180,14 +179,15 @@ class CreateOrderView(MiniAppAuthView):
                 ])
 
                 # Iniciar el pago en Toka (Mini-Program Payment).
-                # merchantTransId: nuestro id unico de la transaccion (<=64).
-                merchant_trans_id = f"SUP-{order.id}-{uuid.uuid4().hex[:12]}"
+                # merchantTransId (campo customizable de Toka, <=64): usamos el
+                # consecutivo legible del pedido, SUPLI-000123.
+                merchant_trans_id = order.order_number
                 client = TokaClient()
                 resp = client.create_payment(
                     user_id=customer.toka_customer_id,  # userId de Toka
                     merchant_trans_id=merchant_trans_id,
                     amount=total,
-                    order_title=f"Pedido Supli #{order.id}",
+                    order_title=f"Pedido {order.order_number}",
                 )
                 # El camino feliz del create devuelve "A" (20000006 Accept Request),
                 # no "S". Ambos son exito.

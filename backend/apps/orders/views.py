@@ -69,7 +69,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
 
         headers = [
-            "#",
+            "N° Pedido",
             "Cliente",
             "Nombre Completo",
             "Numero de contacto",
@@ -107,7 +107,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         def order_base(o):
             return [
-                o.id,
+                o.order_number,
                 o.customer.full_name,
                 o.recipient_name,
                 o.contact_number,
@@ -154,7 +154,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
         # Anchos de columna aproximados para que se lea bien de una.
-        widths = [6, 22, 22, 16, 30, 22, 18, 20, 16, 12, 28, 16, 10, 15, 13, 15, 18, 18]
+        widths = [14, 22, 22, 16, 30, 22, 18, 20, 16, 12, 28, 16, 10, 15, 13, 15, 18, 18]
         for i, w in enumerate(widths, start=1):
             ws.column_dimensions[get_column_letter(i)].width = w
 

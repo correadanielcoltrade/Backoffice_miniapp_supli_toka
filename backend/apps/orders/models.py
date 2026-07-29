@@ -150,6 +150,16 @@ class Order(models.Model):
     def __str__(self):
         return f"Pedido #{self.pk} - {self.customer.full_name}"
 
+    @property
+    def order_number(self):
+        """
+        Consecutivo legible del pedido: prefijo SUPLI- + id con 6 digitos
+        (SUPLI-000123). Se deriva del id (unico), por eso no necesita un campo
+        propio ni migracion. Es el merchantTransId que se envia a Toka y el
+        numero que ve el operador en el back office.
+        """
+        return f"SUPLI-{self.pk:06d}" if self.pk else ""
+
     def recalculate_total(self):
         total = sum((item.subtotal for item in self.items.all()), 0)
         self.total_amount = total

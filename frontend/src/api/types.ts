@@ -111,6 +111,7 @@ export interface OrderItem {
 
 export interface Order {
   id: number;
+  order_number: string;
   customer: number;
   customer_name: string;
   recipient_name: string;

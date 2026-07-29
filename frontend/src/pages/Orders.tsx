@@ -454,7 +454,7 @@ export default function Orders() {
             <table className="data">
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th>N° Pedido</th>
                   <th>Cliente</th>
                   <th>Nombre Completo</th>
                   <th>Número de contacto</th>
@@ -474,8 +474,8 @@ export default function Orders() {
               <tbody>
                 {orders.map((o) => (
                   <tr key={o.id} className={newIds.has(o.id) ? "row-new" : undefined}>
-                    <td>
-                      {o.id}
+                    <td style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
+                      {o.order_number}
                       {newIds.has(o.id) && (
                         <span className="badge green" style={{ marginLeft: 6 }}>
                           Nuevo

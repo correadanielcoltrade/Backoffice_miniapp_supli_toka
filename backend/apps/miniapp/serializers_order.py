@@ -40,6 +40,7 @@ def serialize_order_summary(order, request=None):
     """Endpoint 9 (Order history): tarjeta de pedido."""
     return {
         "orderId": str(order.id),
+        "orderNumber": order.order_number,
         "date": _iso(order.created_at),
         "status": ORDER_TO_DELIVERY_STATUS.get(order.status, "IN_PROGRESS"),
         "totalAmount": _money(order.total_amount),

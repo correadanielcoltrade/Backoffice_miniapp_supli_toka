@@ -50,7 +50,7 @@ export default function Payments() {
                       {p.status_display}
                     </span>
                   </td>
-                  <td>{p.order ? `#${p.order}` : "—"}</td>
+                  <td>{p.order_number ?? (p.order ? `#${p.order}` : "—")}</td>
                 </tr>
               ))}
               {data.length === 0 && (

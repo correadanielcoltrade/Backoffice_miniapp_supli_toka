@@ -198,7 +198,10 @@ class CreateOrderView(MiniAppAuthView):
                 payment_id = resp.data.get("paymentId", "")
                 PaymentTransaction.objects.create(
                     toka_customer_id=customer.toka_customer_id,
-                    customer_name=customer.full_name,
+                    # Snapshot del nombre: preferimos el del pedido (recipient_name),
+                    # el full_name del Customer aun es el id de Toka mientras no
+                    # tengamos el nombre desde la super app (Query User Info).
+                    customer_name=order.recipient_name or customer.full_name,
                     payment_number=merchant_trans_id,
                     provider_payment_id=payment_id,
                     amount=total,

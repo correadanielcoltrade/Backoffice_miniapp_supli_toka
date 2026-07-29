@@ -139,6 +139,7 @@ export interface Payment {
   status: string;
   status_display: string;
   order: number | null;
+  order_number: string | null;
   created_at: string;
 }
 

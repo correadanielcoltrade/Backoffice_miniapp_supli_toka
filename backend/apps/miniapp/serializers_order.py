@@ -55,6 +55,53 @@ def serialize_order_detail(order, request=None):
     que se omiten (la spec los marca como opcionales / "pueden no existir aun").
     """
     data = serialize_order_summary(order, request)
-    # Los campos opcionales de envio se agregaran aqui cuando el pedido se
-    # despache (trackingUrl, carrier, shippingCost). Hoy no se modelan.
+    # Resumen del tracking para que la ficha del pedido muestre el estado actual.
+    data["tracking"] = {
+        "currentStatus": order.tracking_status,
+        "currentStatusLabel": DELIVERY_STATUS_LABELS.get(
+            order.tracking_status, order.tracking_status
+        ),
+        "trackingGuide": order.tracking_guide or "",
+        "carrier": order.carrier or "",
+    }
     return data
+
+
+# Etiquetas en espanol (con acentos) para mostrar al cliente en la mini app.
+DELIVERY_STATUS_LABELS = {
+    "PENDING": "Pendiente de despacho",
+    "LEFT_WAREHOUSE": "Salió de bodega",
+    "IN_TRANSIT": "En camino a WH Transport",
+    "OUT_FOR_DELIVERY": "En reparto al domicilio",
+    "DELIVERED": "Entregado",
+    "EXCEPTION": "Novedad",
+}
+
+
+def serialize_tracking_event(event):
+    """Un paso del historial de entrega."""
+    return {
+        "status": event.status,
+        "statusLabel": DELIVERY_STATUS_LABELS.get(event.status, event.status),
+        "note": event.note or "",
+        "timestamp": _iso(event.created_at),
+    }
+
+
+def serialize_order_tracking(order):
+    """
+    Tracking de entrega de un pedido: estado actual + guia + transportadora +
+    historial completo de cambios (mas antiguo primero), para la mini app.
+    """
+    events = order.tracking_events.all()
+    return {
+        "orderId": str(order.id),
+        "orderNumber": order.order_number,
+        "currentStatus": order.tracking_status,
+        "currentStatusLabel": DELIVERY_STATUS_LABELS.get(
+            order.tracking_status, order.tracking_status
+        ),
+        "trackingGuide": order.tracking_guide or "",
+        "carrier": order.carrier or "",
+        "history": [serialize_tracking_event(e) for e in events],
+    }

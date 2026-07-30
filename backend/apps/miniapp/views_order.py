@@ -14,7 +14,11 @@ from apps.orders.models import Order
 
 from .base import MiniAppAuthView
 from .envelope import build_pagination, data_response
-from .serializers_order import serialize_order_detail, serialize_order_summary
+from .serializers_order import (
+    serialize_order_detail,
+    serialize_order_summary,
+    serialize_order_tracking,
+)
 from .services_payment import (
     DELIVERY_STATUS_TO_ORDER,
     HISTORY_ORDER_STATUSES,
@@ -73,3 +77,24 @@ class OrderDetailView(MiniAppAuthView):
         except (Order.DoesNotExist, ValueError, TypeError):
             raise NotFound("Pedido no encontrado.")
         return data_response(serialize_order_detail(order, request))
+
+
+class OrderTrackingView(MiniAppAuthView):
+    """
+    GET /v1/orders/{orderId}/tracking — estado de entrega + historial de cambios.
+
+    Devuelve el estado actual (currentStatus/currentStatusLabel), la guia y la
+    transportadora, y el historial completo (history[], mas antiguo primero).
+    Solo sobre pedidos del cliente autenticado.
+    """
+
+    def get(self, request, order_id):
+        try:
+            order = (
+                request.user.orders
+                .prefetch_related("tracking_events")
+                .get(pk=order_id)
+            )
+        except (Order.DoesNotExist, ValueError, TypeError):
+            raise NotFound("Pedido no encontrado.")
+        return data_response(serialize_order_tracking(order))

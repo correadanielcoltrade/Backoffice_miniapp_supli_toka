@@ -21,7 +21,7 @@ from .views_location import (
     StatesView,
     SuburbsView,
 )
-from .views_order import OrderDetailView, OrderHistoryView
+from .views_order import OrderDetailView, OrderHistoryView, OrderTrackingView
 from .views_payment import CancelOrderView, CreateOrderView, PaymentStatusView
 
 urlpatterns = [
@@ -84,6 +84,12 @@ urlpatterns = [
         "orders/<int:order_id>/cancel",
         CancelOrderView.as_view(),
         name="miniapp-order-cancel",
+    ),
+    # Tracking de entrega: estado actual + historial de cambios (para la mini app).
+    path(
+        "orders/<int:order_id>/tracking",
+        OrderTrackingView.as_view(),
+        name="miniapp-order-tracking",
     ),
     # Endpoint 15 - Detalle de un pedido
     path(

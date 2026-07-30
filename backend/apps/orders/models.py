@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
@@ -104,6 +105,18 @@ class Order(models.Model):
         DELIVERED = "DELIVERED", "Entregado"
         CANCELLED = "CANCELLED", "Cancelado"
 
+    class DeliveryStatus(models.TextChoices):
+        """
+        Pasos del tracking de entrega que el back office gestiona manualmente y
+        que se exponen a la mini app (junto al historial de cambios).
+        """
+        PENDING = "PENDING", "Pendiente de despacho"
+        LEFT_WAREHOUSE = "LEFT_WAREHOUSE", "Salio de bodega"
+        IN_TRANSIT = "IN_TRANSIT", "En camino a WH Transport"
+        OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY", "En reparto al domicilio"
+        DELIVERED = "DELIVERED", "Entregado"
+        EXCEPTION = "EXCEPTION", "Novedad"
+
     customer = models.ForeignKey(
         Customer, on_delete=models.PROTECT, related_name="orders"
     )
@@ -139,6 +152,23 @@ class Order(models.Model):
         "stock descontado", default=False,
         help_text="True una vez que el pago fue confirmado y se descuento inventario.",
     )
+
+    # --- Seguimiento de entrega (tracking) -------------------------------
+    # Estado ACTUAL de la entrega; el historial de cambios vive en TrackingEvent.
+    tracking_status = models.CharField(
+        "estado de entrega",
+        max_length=20,
+        choices=DeliveryStatus.choices,
+        default=DeliveryStatus.PENDING,
+    )
+    tracking_guide = models.CharField(
+        "guia de entrega", max_length=120, blank=True, default="",
+        help_text="Numero de guia de la transportadora.",
+    )
+    carrier = models.CharField(
+        "transportadora", max_length=120, blank=True, default=""
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -189,3 +219,39 @@ class OrderItem(models.Model):
     @property
     def subtotal(self):
         return self.quantity * self.unit_price
+
+
+class TrackingEvent(models.Model):
+    """
+    Historial de cambios del tracking de entrega de un pedido. Cada actualizacion
+    manual desde el back office crea un evento (append-only), de modo que la mini
+    app pueda mostrar la linea de tiempo completa: estado, nota y fecha.
+    """
+
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name="tracking_events"
+    )
+    status = models.CharField(
+        "estado de entrega", max_length=20, choices=Order.DeliveryStatus.choices
+    )
+    note = models.TextField(
+        "nota / novedad", blank=True, default="",
+        help_text="Detalle del paso; obligatorio describir la Novedad.",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tracking_events",
+        help_text="Usuario del back office que registro el cambio.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "evento de tracking"
+        verbose_name_plural = "eventos de tracking"
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.order.order_number}: {self.get_status_display()}"

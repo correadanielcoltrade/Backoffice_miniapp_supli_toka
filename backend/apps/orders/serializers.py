@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from apps.catalog.models import Product
 
-from .models import Customer, CustomerAddress, Order, OrderItem
+from .models import Customer, CustomerAddress, Order, OrderItem, TrackingEvent
 
 
 class CustomerAddressSerializer(serializers.ModelSerializer):
@@ -71,11 +71,36 @@ class OrderItemSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "unit_price", "subtotal"]
 
 
+class TrackingEventSerializer(serializers.ModelSerializer):
+    """Un evento del historial de tracking (solo lectura)."""
+
+    status_display = serializers.CharField(
+        source="get_status_display", read_only=True
+    )
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TrackingEvent
+        fields = [
+            "id", "status", "status_display", "note",
+            "created_by_name", "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_created_by_name(self, obj) -> str:
+        u = obj.created_by
+        return (u.get_full_name() or u.username) if u else ""
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
     customer_name = serializers.CharField(source="customer.full_name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     order_number = serializers.CharField(read_only=True)
+    tracking_status_display = serializers.CharField(
+        source="get_tracking_status_display", read_only=True
+    )
+    tracking_events = TrackingEventSerializer(many=True, read_only=True)
 
     class Meta:
         model = Order
@@ -84,6 +109,11 @@ class OrderSerializer(serializers.ModelSerializer):
             "order_number",
             "customer",
             "customer_name",
+            "tracking_status",
+            "tracking_status_display",
+            "tracking_guide",
+            "carrier",
+            "tracking_events",
             "saved_address",
             "recipient_name",
             "contact_number",
@@ -105,6 +135,10 @@ class OrderSerializer(serializers.ModelSerializer):
             "id",
             "total_amount",
             "stock_deducted",
+            # El tracking se gestiona por la accion dedicada, no por el update.
+            "tracking_status",
+            "tracking_guide",
+            "carrier",
             "created_at",
             "updated_at",
         ]
@@ -159,3 +193,29 @@ class OrderSerializer(serializers.ModelSerializer):
                 )
             instance.recalculate_total()
         return instance
+
+
+class TrackingUpdateSerializer(serializers.Serializer):
+    """
+    Entrada de la accion PATCH/POST de tracking: registra un nuevo paso de
+    entrega. Solo 'status' es obligatorio; guia/transportadora son opcionales
+    y, si vienen, actualizan esos datos del pedido. La 'Novedad' exige nota.
+    """
+
+    status = serializers.ChoiceField(choices=Order.DeliveryStatus.choices)
+    note = serializers.CharField(required=False, allow_blank=True, default="")
+    tracking_guide = serializers.CharField(
+        required=False, allow_blank=True, max_length=120
+    )
+    carrier = serializers.CharField(
+        required=False, allow_blank=True, max_length=120
+    )
+
+    def validate(self, attrs):
+        if attrs["status"] == Order.DeliveryStatus.EXCEPTION and not (
+            attrs.get("note") or ""
+        ).strip():
+            raise serializers.ValidationError(
+                {"note": "Describe la Novedad (motivo del incidente)."}
+            )
+        return attrs

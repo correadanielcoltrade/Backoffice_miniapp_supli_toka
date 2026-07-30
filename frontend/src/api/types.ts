@@ -109,9 +109,23 @@ export interface OrderItem {
   subtotal: string;
 }
 
+export interface TrackingEvent {
+  id: number;
+  status: string;
+  status_display: string;
+  note: string;
+  created_by_name: string;
+  created_at: string;
+}
+
 export interface Order {
   id: number;
   order_number: string;
+  tracking_status: string;
+  tracking_status_display: string;
+  tracking_guide: string;
+  carrier: string;
+  tracking_events: TrackingEvent[];
   customer: number;
   customer_name: string;
   recipient_name: string;

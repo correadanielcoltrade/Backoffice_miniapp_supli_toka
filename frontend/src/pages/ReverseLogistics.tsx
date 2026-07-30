@@ -1,4 +1,5 @@
 import { useList } from "../api/useList";
+import { Pagination, usePagination } from "../components/Pagination";
 
 interface ReturnRequest {
   id: number;
@@ -11,6 +12,7 @@ interface ReturnRequest {
 
 export default function ReverseLogistics() {
   const { data, loading, error } = useList<ReturnRequest>("/returns/");
+  const pg = usePagination(data);
 
   return (
     <div className="card">
@@ -29,6 +31,7 @@ export default function ReverseLogistics() {
       {error && <div className="error-text">{error}</div>}
 
       {!loading && !error && (
+        <>
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -40,7 +43,7 @@ export default function ReverseLogistics() {
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
+              {pg.pageItems.map((r) => (
                 <tr key={r.id}>
                   <td>{r.id}</td>
                   <td>#{r.order}</td>
@@ -60,6 +63,8 @@ export default function ReverseLogistics() {
             </tbody>
           </table>
         </div>
+        <Pagination pg={pg} />
+        </>
       )}
     </div>
   );

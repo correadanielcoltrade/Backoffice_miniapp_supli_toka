@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Category } from "../api/types";
+import { Pagination, usePagination } from "../components/Pagination";
 import { Switch } from "../components/Switch";
 import { IMAGE_RULES, checkImageDimensions, ruleHint } from "../lib/imageValidation";
 
@@ -19,6 +20,11 @@ function iconUrl(icon: string | null): string | null {
 
 export default function Categories() {
   const { data, loading, error, reload } = useList<Category>("/categories/");
+  const sorted = useMemo(
+    () => data.slice().sort((a, b) => a.sort_order - b.sort_order),
+    [data]
+  );
+  const pg = usePagination(sorted);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY);
@@ -241,6 +247,7 @@ export default function Categories() {
       {error && <div className="error-text">{error}</div>}
 
       {!loading && !error && (
+        <>
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -253,10 +260,7 @@ export default function Categories() {
               </tr>
             </thead>
             <tbody>
-              {data
-                .slice()
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .map((c) => (
+              {pg.pageItems.map((c) => (
                   <tr key={c.id} style={{ opacity: c.is_active ? 1 : 0.55 }}>
                     <td>
                       {iconUrl(c.icon) ? (
@@ -325,6 +329,8 @@ export default function Categories() {
             </tbody>
           </table>
         </div>
+        <Pagination pg={pg} />
+        </>
       )}
     </div>
   );

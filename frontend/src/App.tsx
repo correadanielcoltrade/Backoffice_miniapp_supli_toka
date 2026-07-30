@@ -13,6 +13,7 @@ import Payments from "./pages/Payments";
 import Reports from "./pages/Reports";
 import ReverseLogistics from "./pages/ReverseLogistics";
 import Settings from "./pages/Settings";
+import Tracking from "./pages/Tracking";
 import Users from "./pages/Users";
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/usuarios" element={<Users />} />
         <Route path="/pedidos" element={<Orders />} />
+        <Route path="/tracking" element={<Tracking />} />
         <Route path="/inventario" element={<Inventory />} />
         <Route path="/catalogo" element={<Catalog />} />
         <Route path="/categorias" element={<Categories />} />

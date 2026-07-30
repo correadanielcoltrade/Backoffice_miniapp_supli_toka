@@ -612,6 +612,52 @@ table.data tbody tr:hover td {
   gap: 4px;
 }
 
+/* --- Paginacion de tablas --- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.pagination-size,
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-size select {
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pagination .pg-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.pagination .pg-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pagination .pg-btn:not(:disabled):hover {
+  background: #f5f8ff;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

@@ -2,6 +2,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Customer, CustomerAddress, Order, Product } from "../api/types";
+import { Pagination, usePagination } from "../components/Pagination";
+
+/** Trae TODOS los pedidos que cumplen los filtros, siguiendo la paginación DRF. */
+async function fetchAllOrders(params: URLSearchParams): Promise<Order[]> {
+  const acc: Order[] = [];
+  let page = 1;
+  for (let guard = 0; guard < 1000; guard++) {
+    const p = new URLSearchParams(params);
+    p.set("page_size", "100");
+    p.set("page", String(page));
+    const { data } = await api.get(`/orders/?${p.toString()}`);
+    if (Array.isArray(data)) return data;
+    acc.push(...data.results);
+    if (!data.next) break;
+    page += 1;
+  }
+  return acc;
+}
 
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "amber",
@@ -38,6 +56,7 @@ export default function Orders() {
 
   // Listado de pedidos con filtros por fecha de creacion
   const [orders, setOrders] = useState<Order[]>([]);
+  const pg = usePagination(orders);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -97,9 +116,8 @@ export default function Orders() {
       setLoading(true);
       setError("");
     }
-    api
-      .get(`/orders/?${buildParams(from, to).toString()}`)
-      .then(({ data }) => applyOrders(Array.isArray(data) ? data : data.results))
+    fetchAllOrders(buildParams(from, to))
+      .then((all) => applyOrders(all))
       .catch(() => {
         if (!silent) setError("No se pudo cargar la información.");
       })
@@ -450,6 +468,7 @@ export default function Orders() {
         {loading && <div className="loading">Cargando…</div>}
         {error && <div className="error-text">{error}</div>}
         {!loading && !error && (
+          <>
           <div className="table-wrap">
             <table className="data">
               <thead>
@@ -472,7 +491,7 @@ export default function Orders() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
+                {pg.pageItems.map((o) => (
                   <tr key={o.id} className={newIds.has(o.id) ? "row-new" : undefined}>
                     <td style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
                       {o.order_number}
@@ -548,6 +567,8 @@ export default function Orders() {
               </tbody>
             </table>
           </div>
+          <Pagination pg={pg} />
+          </>
         )}
       </div>
     </>

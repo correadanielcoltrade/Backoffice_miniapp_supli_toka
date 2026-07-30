@@ -1,5 +1,6 @@
 import { useList } from "../api/useList";
 import type { Payment } from "../api/types";
+import { Pagination, usePagination } from "../components/Pagination";
 
 const BADGE: Record<string, string> = {
   CONFIRMED: "green",
@@ -10,6 +11,7 @@ const BADGE: Record<string, string> = {
 
 export default function Payments() {
   const { data, loading, error } = useList<Payment>("/payments/");
+  const pg = usePagination(data);
 
   return (
     <div className="card">
@@ -22,6 +24,7 @@ export default function Payments() {
       {error && <div className="error-text">{error}</div>}
 
       {!loading && !error && (
+        <>
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -35,7 +38,7 @@ export default function Payments() {
               </tr>
             </thead>
             <tbody>
-              {data.map((p) => (
+              {pg.pageItems.map((p) => (
                 <tr key={p.id}>
                   <td>{p.toka_customer_id}</td>
                   <td>{p.customer_name}</td>
@@ -63,6 +66,8 @@ export default function Payments() {
             </tbody>
           </table>
         </div>
+        <Pagination pg={pg} />
+        </>
       )}
     </div>
   );

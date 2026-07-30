@@ -11,6 +11,7 @@ import {
   Settings,
   ShoppingBag,
   Tags,
+  Truck,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -36,6 +37,12 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/pedidos",
     label: "Pedidos",
     icon: ShoppingBag,
+    roles: ["SALES", "LOGISTIC"],
+  },
+  {
+    to: "/tracking",
+    label: "Tracking de entregas",
+    icon: Truck,
     roles: ["SALES", "LOGISTIC"],
   },
   {

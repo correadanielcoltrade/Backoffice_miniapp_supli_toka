@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Brand, Category, Product, ProductSpec } from "../api/types";
+import { Pagination, usePagination } from "../components/Pagination";
 import { IMAGE_RULES, checkImageDimensions, ruleHint } from "../lib/imageValidation";
 
 const IMAGE_RULE = IMAGE_RULES.productImage;
@@ -133,6 +134,7 @@ export default function Catalog() {
   const { data: products, loading, error, reload } = useList<Product>("/products/");
   const { data: categories } = useList<Category>("/categories/");
   const { data: brands, reload: reloadBrands } = useList<Brand>("/brands/");
+  const pg = usePagination(products);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -549,6 +551,7 @@ export default function Catalog() {
       {error && <div className="error-text">{error}</div>}
 
       {!loading && !error && (
+        <>
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -564,7 +567,7 @@ export default function Catalog() {
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => (
+              {pg.pageItems.map((p) => (
                 <tr key={p.id} style={{ opacity: p.is_active ? 1 : 0.55 }}>
                   <td>
                     {p.images.length > 0 ? (
@@ -657,6 +660,8 @@ export default function Catalog() {
             </tbody>
           </table>
         </div>
+        <Pagination pg={pg} />
+        </>
       )}
     </div>
   );

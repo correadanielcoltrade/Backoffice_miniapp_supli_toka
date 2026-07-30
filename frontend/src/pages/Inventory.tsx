@@ -2,9 +2,11 @@ import { useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { Inventory as Inv } from "../api/types";
+import { Pagination, usePagination } from "../components/Pagination";
 
 export default function Inventory() {
   const { data, loading, error, reload } = useList<Inv>("/inventory/");
+  const pg = usePagination(data);
   const [edits, setEdits] = useState<Record<number, number>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
 
@@ -33,6 +35,7 @@ export default function Inventory() {
       {error && <div className="error-text">{error}</div>}
 
       {!loading && !error && (
+        <>
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -44,7 +47,7 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
-              {data.map((item) => (
+              {pg.pageItems.map((item) => (
                 <tr key={item.id}>
                   <td>{item.sku}</td>
                   <td>{item.product_description}</td>
@@ -79,6 +82,8 @@ export default function Inventory() {
             </tbody>
           </table>
         </div>
+        <Pagination pg={pg} />
+        </>
       )}
     </div>
   );

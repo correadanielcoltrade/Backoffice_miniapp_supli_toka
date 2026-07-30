@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { User } from "../api/types";
+import { Pagination, usePagination } from "../components/Pagination";
 
 const ROLES = [
   { value: "ADMINISTRADOR", label: "Administrador" },
@@ -22,6 +23,7 @@ const EMPTY = {
 
 export default function Users() {
   const { data, loading, error, reload } = useList<User>("/users/");
+  const pg = usePagination(data);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -105,6 +107,7 @@ export default function Users() {
       {error && <div className="error-text">{error}</div>}
 
       {!loading && !error && (
+        <>
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -117,7 +120,7 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {data.map((u) => (
+              {pg.pageItems.map((u) => (
                 <tr key={u.id}>
                   <td>{u.username}</td>
                   <td>
@@ -137,6 +140,8 @@ export default function Users() {
             </tbody>
           </table>
         </div>
+        <Pagination pg={pg} />
+        </>
       )}
     </div>
   );

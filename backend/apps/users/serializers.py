@@ -117,9 +117,21 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Agrega datos del usuario y su rol a la respuesta del login."""
+    """
+    Login por username O correo. Si en el campo de usuario llega un correo, se
+    resuelve al username real (correo insensible a mayusculas) antes de
+    autenticar. Sigue exigiendo la contrasena correcta. Ademas agrega los datos
+    del usuario y su rol a la respuesta.
+    """
 
     def validate(self, attrs):
+        login = attrs.get(self.username_field, "") or ""
+        if "@" in login:
+            try:
+                match = User.objects.get(email__iexact=login.strip())
+                attrs[self.username_field] = match.username
+            except (User.DoesNotExist, User.MultipleObjectsReturned):
+                pass  # que falle normalmente en super().validate() -> 401
         data = super().validate(attrs)
         data["user"] = UserSerializer(self.user).data
         return data

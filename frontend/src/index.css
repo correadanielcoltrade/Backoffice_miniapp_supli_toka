@@ -658,6 +658,159 @@ table.data tbody tr:hover td {
   background: #f5f8ff;
 }
 
+/* --- Fila clickeable (drill-down a detalle) --- */
+tr.clickable-row {
+  cursor: pointer;
+}
+tr.clickable-row:hover td {
+  background: #eef4ff;
+}
+
+/* --- Modal de detalle --- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.modal-card {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 1320px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  background: #f7faff;
+}
+
+.modal-close {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  color: #475569;
+}
+.modal-close:hover {
+  background: #f1f5f9;
+}
+
+.modal-body {
+  padding: 20px 22px 24px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 620px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.detail-h {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #607389;
+  margin: 0 0 8px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #eef2f7;
+  font-size: 13px;
+}
+.detail-label {
+  color: #64748b;
+}
+.detail-value {
+  font-weight: 500;
+  text-align: right;
+}
+
+/* Tabla de productos dentro del modal de detalle */
+.detail-table {
+  font-size: 13px;
+}
+.detail-table tfoot td {
+  border-top: 2px solid var(--border);
+  border-bottom: 0;
+  background: #f7faff;
+  font-size: 15px;
+  padding: 12px 14px;
+}
+
+/* Scroll vertical cuando el pedido trae muchos productos.
+   El encabezado y la fila de total quedan fijos (sticky). */
+.detail-products-wrap {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.detail-products-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.detail-products-wrap tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+.detail-thumbs {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  max-width: 150px;
+}
+.detail-thumbs img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.detail-noimg {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: #94a3b8;
+  text-align: center;
+  background: #faf9ff;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

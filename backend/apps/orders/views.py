@@ -5,6 +5,7 @@ from django.http import HttpResponse
 from django.utils import timezone
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+from rest_framework import mixins
 from rest_framework import status as http_status
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -43,8 +44,17 @@ class CustomerAddressViewSet(viewsets.ModelViewSet):
     search_fields = ["complete_address", "suburb", "municipality"]
 
 
-class OrderViewSet(viewsets.ModelViewSet):
-    """Modulo de Gestion de Pedidos."""
+class OrderViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """
+    Modulo de Gestion de Pedidos. Los pedidos SOLO se crean desde la mini app
+    (flujo /v1); no se permite la creacion manual por API (sin POST a la lista).
+    """
 
     queryset = (
         Order.objects.select_related("customer", "saved_address")

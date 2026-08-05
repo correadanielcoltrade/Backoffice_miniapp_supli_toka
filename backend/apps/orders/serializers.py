@@ -56,6 +56,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
     subtotal = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
     )
+    # Imagenes adjuntas del producto (para el detalle del pedido en el back office).
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
@@ -67,8 +69,20 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "quantity",
             "unit_price",
             "subtotal",
+            "images",
         ]
-        read_only_fields = ["id", "unit_price", "subtotal"]
+        read_only_fields = ["id", "unit_price", "subtotal", "images"]
+
+    def get_images(self, obj) -> list[str]:
+        request = self.context.get("request")
+        urls = []
+        for field in ("image1", "image2", "image3", "image4"):
+            img = getattr(obj.product, field, None)
+            if img:
+                urls.append(
+                    request.build_absolute_uri(img.url) if request else img.url
+                )
+        return urls
 
 
 class TrackingEventSerializer(serializers.ModelSerializer):
@@ -142,38 +156,6 @@ class OrderSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-
-    def _prefill_address_from_saved(self, validated_data):
-        """Si se selecciona una direccion guardada y no se envian los campos,
-        se copian (en formato MX) como snapshot editable del pedido."""
-        saved = validated_data.get("saved_address")
-        if saved:
-            defaults = {
-                "full_address": saved.complete_address,
-                "address_complement": saved.supplementary_address,
-                "colonia": saved.suburb,
-                "city_alcaldia": saved.municipality,
-                "state": saved.state,
-                "postal_code": saved.zip_code,
-            }
-            for field, value in defaults.items():
-                validated_data.setdefault(field, value)
-
-    @transaction.atomic
-    def create(self, validated_data):
-        items_data = validated_data.pop("items", [])
-        self._prefill_address_from_saved(validated_data)
-        order = Order.objects.create(**validated_data)
-        for item in items_data:
-            product = item["product"]
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                quantity=item["quantity"],
-                unit_price=product.sale_price,
-            )
-        order.recalculate_total()
-        return order
 
     @transaction.atomic
     def update(self, instance, validated_data):

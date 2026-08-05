@@ -107,6 +107,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: string;
   subtotal: string;
+  images: string[];
 }
 
 export interface TrackingEvent {

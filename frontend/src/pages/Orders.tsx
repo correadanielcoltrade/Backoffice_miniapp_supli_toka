@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import { useList } from "../api/useList";
-import type { Customer, CustomerAddress, Order, Product } from "../api/types";
+import type { Order } from "../api/types";
 import { Pagination, usePagination } from "../components/Pagination";
+
+const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api")
+  .replace(/\/api\/?$/, "");
+
+// Respeta URLs absolutas (R2); antepone el origen del API a rutas relativas.
+function imgUrl(path: string): string {
+  return path.startsWith("http") ? path : API_ORIGIN + path;
+}
 
 /** Trae TODOS los pedidos que cumplen los filtros, siguiendo la paginación DRF. */
 async function fetchAllOrders(params: URLSearchParams): Promise<Order[]> {
@@ -30,30 +37,33 @@ const STATUS_BADGE: Record<string, string> = {
   CANCELLED: "red",
 };
 
+// Colores del estado de ENTREGA (tracking), distinto del estado de pago.
+const DELIVERY_BADGE: Record<string, string> = {
+  PENDING: "gray",
+  LEFT_WAREHOUSE: "amber",
+  IN_TRANSIT: "blue",
+  OUT_FOR_DELIVERY: "blue",
+  DELIVERED: "green",
+  EXCEPTION: "red",
+};
+
+// Opciones del filtro por estado de entrega.
+const DELIVERY_OPTIONS = [
+  { value: "", label: "Todos los estados de entrega" },
+  { value: "PENDING", label: "Pendiente de despacho" },
+  { value: "LEFT_WAREHOUSE", label: "Salió de bodega" },
+  { value: "IN_TRANSIT", label: "En camino a WH Transport" },
+  { value: "OUT_FOR_DELIVERY", label: "En reparto al domicilio" },
+  { value: "DELIVERED", label: "Entregado" },
+  { value: "EXCEPTION", label: "Novedad" },
+];
+
+type OrderFilters = { from: string; to: string; status: string; q: string };
+
 // Cada cuánto se refresca la lista automáticamente (tiempo real por sondeo).
 const POLL_MS = 15000;
 
-// Los 8 campos de entrega del pedido (traidos de Toka, editables)
-const EMPTY_DELIVERY = {
-  recipient_name: "",
-  contact_number: "",
-  full_address: "",
-  address_complement: "",
-  colonia: "",
-  city_alcaldia: "",
-  state: "",
-  postal_code: "",
-};
-
-interface ItemLine {
-  product: string;
-  quantity: number;
-}
-
 export default function Orders() {
-  const { data: customers } = useList<Customer>("/customers/");
-  const { data: products } = useList<Product>("/products/");
-
   // Listado de pedidos con filtros por fecha de creacion
   const [orders, setOrders] = useState<Order[]>([]);
   const pg = usePagination(orders);
@@ -61,19 +71,27 @@ export default function Orders() {
   const [error, setError] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [trackingStatus, setTrackingStatus] = useState("");
+  const [search, setSearch] = useState("");
   const [downloading, setDownloading] = useState(false);
 
   // Estado de "tiempo real"
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const activeParams = useRef({ from: "", to: "" });
+  const activeParams = useRef<OrderFilters>({ from: "", to: "", status: "", q: "" });
   const knownIds = useRef<Set<number>>(new Set());
   const hasLoaded = useRef(false);
 
-  function buildParams(from: string, to: string) {
+  function currentFilters(): OrderFilters {
+    return { from: dateFrom, to: dateTo, status: trackingStatus, q: search };
+  }
+
+  function buildParams(f: OrderFilters) {
     const p = new URLSearchParams();
-    if (from) p.append("created_after", from);
-    if (to) p.append("created_before", to);
+    if (f.from) p.append("created_after", f.from);
+    if (f.to) p.append("created_before", f.to);
+    if (f.status) p.append("tracking_status", f.status);
+    if (f.q.trim()) p.append("q", f.q.trim());
     return p;
   }
 
@@ -106,17 +124,16 @@ export default function Orders() {
   }
 
   function loadOrders(
-    from = dateFrom,
-    to = dateTo,
+    f: OrderFilters = currentFilters(),
     opts: { silent?: boolean } = {}
   ) {
     const { silent } = opts;
-    activeParams.current = { from, to };
+    activeParams.current = f;
     if (!silent) {
       setLoading(true);
       setError("");
     }
-    fetchAllOrders(buildParams(from, to))
+    fetchAllOrders(buildParams(f))
       .then((all) => applyOrders(all))
       .catch(() => {
         if (!silent) setError("No se pudo cargar la información.");
@@ -135,9 +152,7 @@ export default function Orders() {
   // Tiempo real: sondeo periódico silencioso + refresco al volver a la pestaña.
   useEffect(() => {
     function refresh() {
-      loadOrders(activeParams.current.from, activeParams.current.to, {
-        silent: true,
-      });
+      loadOrders(activeParams.current, { silent: true });
     }
     const interval = window.setInterval(refresh, POLL_MS);
     function onVisible() {
@@ -156,14 +171,16 @@ export default function Orders() {
   function clearFilters() {
     setDateFrom("");
     setDateTo("");
-    loadOrders("", "");
+    setTrackingStatus("");
+    setSearch("");
+    loadOrders({ from: "", to: "", status: "", q: "" });
   }
 
   async function downloadExcel() {
     setDownloading(true);
     try {
       const res = await api.get(
-        `/orders/export/?${buildParams(dateFrom, dateTo).toString()}`,
+        `/orders/export/?${buildParams(currentFilters()).toString()}`,
         { responseType: "blob" }
       );
       const url = URL.createObjectURL(res.data as Blob);
@@ -181,206 +198,24 @@ export default function Orders() {
     }
   }
 
-  const reload = () => loadOrders();
-
-  const [showForm, setShowForm] = useState(false);
-  const [customerId, setCustomerId] = useState<string>("");
-  const [delivery, setDelivery] = useState({ ...EMPTY_DELIVERY });
-  const [items, setItems] = useState<ItemLine[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  const selectedCustomer = useMemo(
-    () => customers.find((c) => String(c.id) === customerId),
-    [customers, customerId]
-  );
-
-  function setField(k: keyof typeof EMPTY_DELIVERY, v: string) {
-    setDelivery((d) => ({ ...d, [k]: v }));
-  }
-
-  function resetForm() {
-    setCustomerId("");
-    setDelivery({ ...EMPTY_DELIVERY });
-    setItems([]);
-    setFormError("");
-  }
-
-  // Prellenar desde una direccion guardada del cliente
-  function useSavedAddress(addr: CustomerAddress) {
-    setDelivery({
-      recipient_name: selectedCustomer?.full_name ?? delivery.recipient_name,
-      contact_number:
-        selectedCustomer?.contact_number ?? delivery.contact_number,
-      full_address: addr.complete_address,
-      address_complement: addr.supplementary_address,
-      colonia: addr.suburb,
-      city_alcaldia: addr.municipality,
-      state: addr.state,
-      postal_code: addr.zip_code,
-    });
-  }
-
-  function addItem() {
-    setItems((it) => [...it, { product: "", quantity: 1 }]);
-  }
-  function updateItem(i: number, patch: Partial<ItemLine>) {
-    setItems((it) => it.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
-  }
-  function removeItem(i: number) {
-    setItems((it) => it.filter((_, idx) => idx !== i));
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setFormError("");
-    if (!customerId) {
-      setFormError("Selecciona un cliente.");
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.post("/orders/", {
-        customer: Number(customerId),
-        ...delivery,
-        items: items
-          .filter((it) => it.product)
-          .map((it) => ({ product: Number(it.product), quantity: it.quantity })),
-      });
-      resetForm();
-      setShowForm(false);
-      reload();
-    } catch (err: any) {
-      setFormError(JSON.stringify(err.response?.data ?? "Error al crear el pedido"));
-    } finally {
-      setSaving(false);
-    }
-  }
+  // Pedido seleccionado para ver su detalle (modal).
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
 
   return (
     <>
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="section-head">
           <h2>Gestión de Pedidos</h2>
-          <button
-            className="btn secondary"
-            onClick={() => {
-              resetForm();
-              setShowForm((v) => !v);
-            }}
-          >
-            {showForm ? "Cerrar" : "+ Captura manual"}
-          </button>
         </div>
-
         <div className="info-note">
           <span>ℹ️</span>
           <span>
             Los pedidos creados desde la <b>Mini App</b> llegan aquí
             <b> automáticamente y en tiempo real</b>, con todos sus datos de
-            entrega — no hay que traerlos ni dar clic a ningún botón. Esta captura
-            manual es solo para casos excepcionales (p. ej. pedidos telefónicos).
+            entrega — no hay que traerlos ni dar clic a ningún botón. Haz clic en
+            un pedido para ver su detalle.
           </span>
         </div>
-
-        {showForm && (
-          <form onSubmit={submit}>
-            {/* Cliente + direccion guardada */}
-            <div className="split-grid" style={{ marginBottom: 6 }}>
-              <div className="field">
-                <label>Cliente</label>
-                <select
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                >
-                  <option value="">Selecciona un cliente…</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.full_name} · {c.toka_customer_id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label>Usar dirección guardada</label>
-                <select
-                  value=""
-                  disabled={!selectedCustomer?.addresses?.length}
-                  onChange={(e) => {
-                    const addr = selectedCustomer?.addresses.find(
-                      (a) => String(a.id) === e.target.value
-                    );
-                    if (addr) useSavedAddress(addr);
-                  }}
-                >
-                  <option value="">
-                    {selectedCustomer?.addresses?.length
-                      ? "Selecciona una dirección previa…"
-                      : "Sin direcciones guardadas"}
-                  </option>
-                  {selectedCustomer?.addresses?.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label ? `${a.label}: ` : ""}
-                      {a.complete_address}, {a.suburb}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Los 8 campos de entrega */}
-            <div className="form-grid">
-              <Field label="Nombre Completo *" v={delivery.recipient_name} on={(v) => setField("recipient_name", v)} required />
-              <Field label="Número de contacto *" v={delivery.contact_number} on={(v) => setField("contact_number", v)} required />
-              <Field label="Dirección Completa *" v={delivery.full_address} on={(v) => setField("full_address", v)} required />
-              <Field label="Complemento de dirección (opcional)" v={delivery.address_complement} on={(v) => setField("address_complement", v)} />
-              <Field label="Colonia *" v={delivery.colonia} on={(v) => setField("colonia", v)} required />
-              <Field label="Ciudad / Alcaldía *" v={delivery.city_alcaldia} on={(v) => setField("city_alcaldia", v)} required />
-              <Field label="Estado *" v={delivery.state} on={(v) => setField("state", v)} required />
-              <Field label="Código postal *" v={delivery.postal_code} on={(v) => setField("postal_code", v)} required />
-            </div>
-
-            {/* Productos del pedido */}
-            <div className="section-head" style={{ marginTop: 18, marginBottom: 10 }}>
-              <label style={{ margin: 0 }}>Productos del pedido</label>
-              <button type="button" className="btn secondary" onClick={addItem}>
-                + Agregar producto
-              </button>
-            </div>
-            {items.map((row, i) => (
-              <div key={i} className="line-row">
-                <select
-                  value={row.product}
-                  onChange={(e) => updateItem(i, { product: e.target.value })}
-                >
-                  <option value="">Producto…</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.sku} · {p.description} (${Number(p.sale_price).toLocaleString("es-MX")})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min={1}
-                  value={row.quantity}
-                  onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
-                />
-                <button type="button" className="btn secondary" onClick={() => removeItem(i)}>
-                  ✕
-                </button>
-              </div>
-            ))}
-
-            {formError && <div className="error-text">{formError}</div>}
-
-            <div style={{ marginTop: 16 }}>
-              <button className="btn" disabled={saving}>
-                {saving ? "Guardando…" : "Crear pedido"}
-              </button>
-            </div>
-          </form>
-        )}
       </div>
 
       <div className="card">
@@ -405,6 +240,35 @@ export default function Orders() {
               flexWrap: "wrap",
             }}
           >
+            <div className="field" style={{ margin: 0, minWidth: 220 }}>
+              <label>Buscar</label>
+              <input
+                type="text"
+                value={search}
+                placeholder="# pedido, cliente, dirección…"
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") loadOrders();
+                }}
+              />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Estado de entrega</label>
+              <select
+                value={trackingStatus}
+                onChange={(e) => {
+                  const status = e.target.value;
+                  setTrackingStatus(status);
+                  loadOrders({ ...currentFilters(), status });
+                }}
+              >
+                {DELIVERY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="field" style={{ margin: 0 }}>
               <label>Creado desde</label>
               <input
@@ -483,16 +347,21 @@ export default function Orders() {
                   <th>Ciudad / Alcaldía</th>
                   <th>Estado</th>
                   <th>Código postal</th>
-                  <th>Producto</th>
-                  <th>SKU</th>
-                  <th>Cantidad</th>
                   <th>Total</th>
-                  <th>Estado pedido</th>
+                  <th>Estado de pago</th>
+                  <th>Estado de entrega</th>
                 </tr>
               </thead>
               <tbody>
                 {pg.pageItems.map((o) => (
-                  <tr key={o.id} className={newIds.has(o.id) ? "row-new" : undefined}>
+                  <tr
+                    key={o.id}
+                    className={
+                      "clickable-row" + (newIds.has(o.id) ? " row-new" : "")
+                    }
+                    onClick={() => setDetailOrder(o)}
+                    title="Ver detalle del pedido"
+                  >
                     <td style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
                       {o.order_number}
                       {newIds.has(o.id) && (
@@ -510,57 +379,29 @@ export default function Orders() {
                     <td>{o.city_alcaldia}</td>
                     <td>{o.state}</td>
                     <td>{o.postal_code}</td>
-                    {/* Producto / Cantidad / SKU: una linea por item, alineadas
-                        entre las 3 columnas (mismo orden y alto de fila). */}
-                    <td>
-                      {o.items?.length ? (
-                        <div className="item-lines" style={{ minWidth: 160 }}>
-                          {o.items.map((it) => (
-                            <span key={it.id}>{it.product_description}</span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {o.items?.length ? (
-                        <div className="item-lines">
-                          {o.items.map((it) => (
-                            <span key={it.id} style={{ whiteSpace: "nowrap" }}>
-                              {it.sku}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {o.items?.length ? (
-                        <div className="item-lines" style={{ textAlign: "center" }}>
-                          {o.items.map((it) => (
-                            <span key={it.id}>
-                              <b>{it.quantity}</b>
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
                     <td>${Number(o.total_amount).toLocaleString("es-MX")}</td>
                     <td>
                       <span className={"badge " + (STATUS_BADGE[o.status] ?? "gray")}>
                         {o.status_display}
                       </span>
                     </td>
+                    <td>
+                      <span
+                        className={
+                          "badge " + (DELIVERY_BADGE[o.tracking_status] ?? "gray")
+                        }
+                      >
+                        {o.tracking_status_display}
+                      </span>
+                    </td>
                   </tr>
                 ))}
                 {orders.length === 0 && (
                   <tr>
-                    <td colSpan={15} className="muted">
-                      Aún no hay pedidos registrados.
+                    <td colSpan={13} className="muted">
+                      {dateFrom || dateTo || trackingStatus || search
+                        ? "No se encontraron pedidos con los filtros aplicados."
+                        : "Aún no hay pedidos registrados."}
                     </td>
                   </tr>
                 )}
@@ -571,25 +412,177 @@ export default function Orders() {
           </>
         )}
       </div>
+
+      {detailOrder && (
+        <OrderDetailModal
+          order={detailOrder}
+          onClose={() => setDetailOrder(null)}
+        />
+      )}
     </>
   );
 }
 
-function Field({
-  label,
-  v,
-  on,
-  required = false,
-}: {
-  label: string;
-  v: string;
-  on: (v: string) => void;
-  required?: boolean;
-}) {
+function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="field">
-      <label>{label}</label>
-      <input value={v} onChange={(e) => on(e.target.value)} required={required} />
+    <div className="detail-row">
+      <span className="detail-label">{label}</span>
+      <span className="detail-value">{value}</span>
+    </div>
+  );
+}
+
+function OrderDetailModal({
+  order,
+  onClose,
+}: {
+  order: Order;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  const money = (v: string | number) => "$" + Number(v).toLocaleString("es-MX");
+  const fecha = new Date(order.created_at).toLocaleString("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20 }}>{order.order_number}</h2>
+            <span className="muted" style={{ fontSize: 13 }}>
+              Creado el {fecha}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className={"badge " + (STATUS_BADGE[order.status] ?? "gray")}>
+              {order.status_display}
+            </span>
+            <button
+              type="button"
+              className="modal-close"
+              onClick={onClose}
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="modal-body">
+          <div className="detail-grid">
+            <section>
+              <h3 className="detail-h">Cliente</h3>
+              <DetailRow label="Cliente (ID Toka)" value={order.customer_name} />
+              <DetailRow label="Nombre completo" value={order.recipient_name} />
+              <DetailRow label="Contacto" value={order.contact_number} />
+            </section>
+            <section>
+              <h3 className="detail-h">Entrega</h3>
+              <DetailRow label="Dirección" value={order.full_address} />
+              <DetailRow
+                label="Complemento"
+                value={order.address_complement || "—"}
+              />
+              <DetailRow label="Colonia" value={order.colonia} />
+              <DetailRow label="Ciudad / Alcaldía" value={order.city_alcaldia} />
+              <DetailRow label="Estado" value={order.state} />
+              <DetailRow label="Código postal" value={order.postal_code} />
+            </section>
+          </div>
+
+          {order.tracking_status && (
+            <div style={{ marginTop: 8 }}>
+              <h3 className="detail-h">Entrega / Tracking</h3>
+              <DetailRow
+                label="Estado de entrega"
+                value={order.tracking_status_display}
+              />
+              {order.tracking_guide && (
+                <DetailRow label="Guía" value={order.tracking_guide} />
+              )}
+              {order.carrier && (
+                <DetailRow label="Transportadora" value={order.carrier} />
+              )}
+            </div>
+          )}
+
+          <h3 className="detail-h" style={{ marginTop: 20 }}>
+            Productos ({order.items.length})
+          </h3>
+          <div className="table-wrap detail-products-wrap" style={{ marginTop: 4 }}>
+            <table className="data detail-table">
+              <thead>
+                <tr>
+                  <th>Imagen</th>
+                  <th>Producto</th>
+                  <th>SKU</th>
+                  <th style={{ textAlign: "center" }}>Cantidad</th>
+                  <th style={{ textAlign: "right" }}>Precio unitario</th>
+                  <th style={{ textAlign: "right" }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.items.map((it) => (
+                  <tr key={it.id}>
+                    <td>
+                      <div className="detail-thumbs">
+                        {it.images.length ? (
+                          it.images.map((src, i) => (
+                            <a
+                              key={i}
+                              href={imgUrl(src)}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Abrir imagen"
+                            >
+                              <img src={imgUrl(src)} alt={it.product_description} />
+                            </a>
+                          ))
+                        ) : (
+                          <div className="detail-noimg">Sin imagen</div>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ whiteSpace: "normal", minWidth: 180, fontWeight: 500 }}>
+                      {it.product_description}
+                    </td>
+                    <td>{it.sku}</td>
+                    <td style={{ textAlign: "center" }}>{it.quantity}</td>
+                    <td style={{ textAlign: "right" }}>{money(it.unit_price)}</td>
+                    <td style={{ textAlign: "right", fontWeight: 600 }}>
+                      {money(it.subtotal)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>
+                    Total del pedido
+                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 800 }}>
+                    {money(order.total_amount)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

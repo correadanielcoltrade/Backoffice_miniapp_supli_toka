@@ -22,11 +22,22 @@ from .views_location import (
     SuburbsView,
 )
 from .views_order import OrderDetailView, OrderHistoryView, OrderTrackingView
-from .views_payment import CancelOrderView, CreateOrderView, PaymentStatusView
+from .views_payment import (
+    CancelOrderView,
+    CreateOrderView,
+    PaymentStatusView,
+    ValidateStockView,
+)
 
 urlpatterns = [
     # Endpoint 1 - Intercambio de sesion
     path("auth/session", AuthSessionView.as_view(), name="miniapp-auth-session"),
+    # Validar stock del carrito ANTES de crear la orden (evita pagar sin stock).
+    path(
+        "payments/validate-stock",
+        ValidateStockView.as_view(),
+        name="miniapp-validate-stock",
+    ),
     # Endpoint 2 - createOrder (inicia el pago)
     path(
         "payments/createOrder",

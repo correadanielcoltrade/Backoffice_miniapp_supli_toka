@@ -116,7 +116,7 @@ def _resolve_items(products):
             })
         # Sin modelo de variantes: productIdVariant == productId (ver ProductDetail).
         try:
-            product = Product.objects.select_related("brand").get(
+            product = Product.objects.select_related("brand", "inventory").get(
                 id=variant_id, is_active=True
             )
         except (Product.DoesNotExist, ValueError, TypeError):
@@ -125,6 +125,56 @@ def _resolve_items(products):
             })
         resolved.append((product, quantity, product.sale_price))
     return resolved
+
+
+def _stock_issues(items):
+    """
+    Recibe items resueltos [(Product, qty, price)] y devuelve la lista de
+    productos cuya cantidad solicitada supera el stock disponible. Lista vacia =
+    todo tiene stock. 'Sin inventario' cuenta como stock 0.
+    """
+    issues = []
+    for product, qty, _ in items:
+        inv = getattr(product, "inventory", None)
+        available = inv.units_in_stock if inv else 0
+        if qty > available:
+            issues.append({
+                "productIdVariant": str(product.id),
+                "name": product.description,
+                "requested": qty,
+                "available": available,
+            })
+    return issues
+
+
+class ValidateStockView(MiniAppAuthView):
+    """
+    POST /v1/payments/validate-stock
+
+    Valida el carrito ANTES de crear la orden: compara la cantidad solicitada de
+    cada producto contra el stock disponible. Devuelve valid=true solo si TODOS
+    los productos tienen stock suficiente. No crea nada ni inicia ningun pago.
+
+    Body: {"products": [{"productIdVariant": "1", "quantity": 3}, ...]}
+    """
+
+    def post(self, request):
+        items = _resolve_items((request.data or {}).get("products"))
+        result = []
+        valid = True
+        for product, qty, _ in items:
+            inv = getattr(product, "inventory", None)
+            available = inv.units_in_stock if inv else 0
+            ok = qty <= available
+            valid = valid and ok
+            result.append({
+                "productIdVariant": str(product.id),
+                "name": product.description,
+                "requested": qty,
+                "available": available,
+                "isAvailable": ok,
+            })
+        return data_response({"valid": valid, "items": result})
 
 
 class CreateOrderView(MiniAppAuthView):
@@ -149,6 +199,17 @@ class CreateOrderView(MiniAppAuthView):
         items = _resolve_items(body.get("products"))
         total = sum(price * qty for _, qty, price in items)
         contact_number = f"{country_code} {number}".strip()[:30]
+
+        # Valida stock ANTES de crear la orden e iniciar el pago en Toka: si el
+        # cliente pide mas unidades que el stock, no se procesa la orden.
+        issues = _stock_issues(items)
+        if issues:
+            return error_response(
+                "INSUFFICIENT_STOCK",
+                "No hay stock suficiente para uno o mas productos del pedido.",
+                details=issues,
+                status=http_status.HTTP_409_CONFLICT,
+            )
 
         # Idempotencia: no duplicar un pago ya iniciado para el mismo carrito.
         if _find_duplicate_pending(customer, address, items):

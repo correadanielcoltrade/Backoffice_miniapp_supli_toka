@@ -66,8 +66,11 @@ class ProductsView(MiniAppFlexibleAuthView):
 
     def get(self, request):
         p = request.query_params
+        # Solo se sirven al catalogo de la mini app productos activos y CON stock
+        # (> 0). Un producto sin inventario o en 0 no aparece. El back office si
+        # los muestra; esta regla es exclusiva del catalogo /v1.
         qs = (
-            Product.objects.filter(is_active=True)
+            Product.objects.filter(is_active=True, inventory__units_in_stock__gt=0)
             .select_related("brand", "category", "inventory")
         )
 
@@ -111,10 +114,11 @@ class ProductDetailView(MiniAppFlexibleAuthView):
 
     def get(self, request, product_id):
         try:
+            # Igual que el listado: un producto sin stock (> 0) no se sirve.
             product = (
                 Product.objects
                 .select_related("brand", "category", "inventory")
-                .get(id=product_id, is_active=True)
+                .get(id=product_id, is_active=True, inventory__units_in_stock__gt=0)
             )
         except Product.DoesNotExist:
             raise NotFound("Producto no encontrado.")

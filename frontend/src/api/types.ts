@@ -162,6 +162,8 @@ export interface CarouselImage {
   id: number;
   image: string;
   link_url: string;
+  target_type: string; // "" | "CATEGORY" | "BRAND" | "PRODUCT"
+  target_id: number | null;
   position: number;
 }
 

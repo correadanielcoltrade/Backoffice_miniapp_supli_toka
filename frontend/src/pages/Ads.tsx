@@ -1,12 +1,22 @@
 import { useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
-import type { Carousel } from "../api/types";
+import type { Brand, Carousel, CarouselImage, Category, Product } from "../api/types";
 import { Switch } from "../components/Switch";
 import { IMAGE_RULES, checkImageDimensions, ruleHint } from "../lib/imageValidation";
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api")
   .replace(/\/api\/?$/, "");
+
+const targetSelectStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  padding: "6px 8px",
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  fontSize: 12,
+  background: "#fff",
+};
 
 // Dimensiones EXACTAS del banner (deben coincidir con BANNER_WIDTH/BANNER_HEIGHT
 // del backend en apps/ads/models.py). Fuente unica en lib/imageValidation.
@@ -20,6 +30,9 @@ function imgUrl(path: string): string {
 
 export default function Ads() {
   const { data, loading, error, reload } = useList<Carousel>("/carousels/");
+  const { data: categories } = useList<Category>("/categories/");
+  const { data: brands } = useList<Brand>("/brands/");
+  const { data: products } = useList<Product>("/products/");
   const [name, setName] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionError, setActionError] = useState("");
@@ -234,19 +247,28 @@ export default function Ads() {
                     )}
                   </div>
                   {img && (
-                    <input
-                      type="url"
-                      placeholder="Enlace de destino (https://…)"
-                      defaultValue={img.link_url}
-                      onBlur={(e) => updateLink(img.id, e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "7px 9px",
-                        borderRadius: 8,
-                        border: "1px solid var(--border)",
-                        fontSize: 12,
-                      }}
-                    />
+                    <>
+                      <input
+                        type="url"
+                        placeholder="Enlace de destino (https://…)"
+                        defaultValue={img.link_url}
+                        onBlur={(e) => updateLink(img.id, e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "7px 9px",
+                          borderRadius: 8,
+                          border: "1px solid var(--border)",
+                          fontSize: 12,
+                        }}
+                      />
+                      <BannerTarget
+                        image={img}
+                        categories={categories}
+                        brands={brands}
+                        products={products}
+                        onError={setActionError}
+                      />
+                    </>
                   )}
                 </div>
               );
@@ -257,10 +279,107 @@ export default function Ads() {
             <b>
               {BANNER_RULE.width}×{BANNER_RULE.height} px
             </b>{" "}
-            o será rechazada. El enlace se guarda al salir del campo.
+            o será rechazada. El enlace y la función del tap se guardan solos.
           </p>
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * Función del tap del banner: a qué contenido navega la mini app al tocarlo.
+ * Se elige un tipo (categoría/marca/producto) y luego la entidad. Se guarda solo
+ * (PATCH) al seleccionar. "Sin función" = el banner no navega a nada.
+ */
+function BannerTarget({
+  image,
+  categories,
+  brands,
+  products,
+  onError,
+}: {
+  image: CarouselImage;
+  categories: Category[];
+  brands: Brand[];
+  products: Product[];
+  onError: (msg: string) => void;
+}) {
+  const [type, setType] = useState(image.target_type || "");
+  const [id, setId] = useState(image.target_id ? String(image.target_id) : "");
+  const [saving, setSaving] = useState(false);
+
+  // Solo se ofrecen entidades ACTIVAS como destino del tap.
+  const options =
+    type === "CATEGORY"
+      ? categories
+          .filter((c) => c.is_active)
+          .map((c) => ({ id: c.id, label: c.name }))
+      : type === "BRAND"
+      ? brands
+          .filter((b) => b.is_active)
+          .map((b) => ({ id: b.id, label: b.name }))
+      : type === "PRODUCT"
+      ? products
+          .filter((p) => p.is_active)
+          .map((p) => ({ id: p.id, label: `${p.sku} · ${p.description}` }))
+      : [];
+
+  async function persist(nextType: string, nextId: string) {
+    setSaving(true);
+    onError("");
+    try {
+      await api.patch(`/carousel-images/${image.id}/`, {
+        target_type: nextType,
+        target_id: nextType && nextId ? Number(nextId) : null,
+      });
+    } catch {
+      onError("No se pudo guardar la función del banner.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span className="muted" style={{ fontSize: 11 }}>
+        Función del tap {saving && "· guardando…"}
+      </span>
+      <div style={{ display: "flex", gap: 6 }}>
+        <select
+          value={type}
+          style={targetSelectStyle}
+          onChange={(e) => {
+            const t = e.target.value;
+            setType(t);
+            setId("");
+            if (!t) persist("", ""); // sin función: guardar de una
+          }}
+        >
+          <option value="">Sin función</option>
+          <option value="CATEGORY">Categoría</option>
+          <option value="BRAND">Marca</option>
+          <option value="PRODUCT">Producto</option>
+        </select>
+        {type && (
+          <select
+            value={id}
+            style={targetSelectStyle}
+            onChange={(e) => {
+              const v = e.target.value;
+              setId(v);
+              if (v) persist(type, v);
+            }}
+          >
+            <option value="">Selecciona…</option>
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </div>
   );
 }

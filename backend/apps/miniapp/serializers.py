@@ -64,15 +64,33 @@ def _price(product):
 
 
 class BannerSerializer(serializers.Serializer):
-    """Endpoint 3: { bannerId, sortOrder, linkUrl, imageUrl }."""
+    """Endpoint 3: { bannerId, sortOrder, linkUrl, imageUrl, target }."""
 
     bannerId = serializers.IntegerField(source="id")
     sortOrder = serializers.IntegerField(source="position")
     linkUrl = serializers.CharField(source="link_url", allow_blank=True)
     imageUrl = serializers.SerializerMethodField()
+    target = serializers.SerializerMethodField()
 
     def get_imageUrl(self, obj):
         return _abs_url(self.context.get("request"), obj.image)
+
+    def get_target(self, obj):
+        """
+        Destino del tap: null si el banner no navega a nada. Si navega, devuelve
+        {type: CATEGORY|BRAND|PRODUCT, id: "<id>"} (id como texto). Defensivo: si
+        la entidad referida ya no existe, se devuelve null (no navegar a algo roto).
+        """
+        if not obj.target_type or not obj.target_id:
+            return None
+        from apps.catalog.models import Brand, Category, Product
+
+        model = {
+            "CATEGORY": Category, "BRAND": Brand, "PRODUCT": Product,
+        }.get(obj.target_type)
+        if model is None or not model.objects.filter(pk=obj.target_id).exists():
+            return None
+        return {"type": obj.target_type, "id": str(obj.target_id)}
 
 
 class CategorySerializer(serializers.Serializer):

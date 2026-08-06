@@ -35,11 +35,26 @@ class Carousel(models.Model):
 class CarouselImage(models.Model):
     """Imagen del carrusel. Maximo 4 por carrusel (validado en el serializer)."""
 
+    class TargetType(models.TextChoices):
+        CATEGORY = "CATEGORY", "Categoria"
+        BRAND = "BRAND", "Marca"
+        PRODUCT = "PRODUCT", "Producto"
+
     carousel = models.ForeignKey(
         Carousel, on_delete=models.CASCADE, related_name="images"
     )
     image = models.ImageField("imagen", upload_to="ads/carousel/")
     link_url = models.URLField("url de destino", blank=True)
+    # Destino del tap en la mini app: a que contenido navega (categoria/marca/
+    # producto) al tocar el banner. Vacio = el banner no navega a nada.
+    target_type = models.CharField(
+        "tipo de destino", max_length=10,
+        choices=TargetType.choices, blank=True, default="",
+    )
+    target_id = models.PositiveIntegerField(
+        "id de destino", null=True, blank=True,
+        help_text="Id de la categoria, marca o producto al que navega el tap.",
+    )
     position = models.PositiveSmallIntegerField("posicion", default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

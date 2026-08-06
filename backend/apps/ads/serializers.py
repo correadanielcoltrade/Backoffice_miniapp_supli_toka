@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.catalog.models import Brand, Category, Product
+
 from .models import (
     BANNER_HEIGHT,
     BANNER_WIDTH,
@@ -8,11 +10,21 @@ from .models import (
     CarouselImage,
 )
 
+# Modelo que respalda cada tipo de destino del tap del banner.
+_TARGET_MODELS = {
+    CarouselImage.TargetType.CATEGORY: Category,
+    CarouselImage.TargetType.BRAND: Brand,
+    CarouselImage.TargetType.PRODUCT: Product,
+}
+
 
 class CarouselImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CarouselImage
-        fields = ["id", "carousel", "image", "link_url", "position", "created_at"]
+        fields = [
+            "id", "carousel", "image", "link_url",
+            "target_type", "target_id", "position", "created_at",
+        ]
         read_only_fields = ["id", "created_at"]
 
     def validate(self, attrs):
@@ -23,7 +35,38 @@ class CarouselImageSerializer(serializers.ModelSerializer):
                     f"El carrusel solo permite {MAX_CAROUSEL_IMAGES} imagenes."
                 )
         self._validate_dimensions(attrs.get("image"))
+        self._validate_target(attrs)
         return attrs
+
+    def _validate_target(self, attrs):
+        """
+        Reglas del destino del tap:
+          - sin tipo -> el id se fuerza a None (banner sin funcion).
+          - con tipo -> el id es obligatorio y la entidad debe existir.
+        """
+        if "target_type" not in attrs and "target_id" not in attrs:
+            return  # PATCH que no toca el destino
+        target_type = attrs.get(
+            "target_type", getattr(self.instance, "target_type", "") or ""
+        )
+        target_id = attrs.get(
+            "target_id", getattr(self.instance, "target_id", None)
+        )
+        if not target_type:
+            attrs["target_type"] = ""
+            attrs["target_id"] = None
+            return
+        if not target_id:
+            raise serializers.ValidationError(
+                {"target_id": "Requerido cuando el banner tiene un destino."}
+            )
+        model = _TARGET_MODELS[target_type]
+        if not model.objects.filter(pk=target_id).exists():
+            raise serializers.ValidationError(
+                {"target_id": f"No existe {target_type} con id {target_id}."}
+            )
+        attrs["target_type"] = target_type
+        attrs["target_id"] = target_id
 
     @staticmethod
     def _validate_dimensions(image):

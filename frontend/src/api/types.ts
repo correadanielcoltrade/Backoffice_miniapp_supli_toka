@@ -115,6 +115,7 @@ export interface TrackingEvent {
   status: string;
   status_display: string;
   note: string;
+  carrier: string;
   created_by_name: string;
   created_at: string;
 }
@@ -173,5 +174,8 @@ export interface Carousel {
   width: number;
   height: number;
   is_active: boolean;
+  active_from: string | null;
+  active_until: string | null;
+  schedule_status: string; // ACTIVE | SCHEDULED | EXPIRED | INACTIVE
   images: CarouselImage[];
 }

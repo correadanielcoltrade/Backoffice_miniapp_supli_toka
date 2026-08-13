@@ -244,6 +244,7 @@ class OrderViewSet(
             order=order,
             status=data["status"],
             note=" — ".join(note_parts),
+            carrier=order.carrier,  # snapshot de la transportadora del paso
             created_by=request.user if request.user.is_authenticated else None,
         )
 

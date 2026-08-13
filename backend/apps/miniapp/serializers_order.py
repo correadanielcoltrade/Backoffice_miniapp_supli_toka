@@ -84,6 +84,7 @@ def serialize_tracking_event(event):
         "status": event.status,
         "statusLabel": DELIVERY_STATUS_LABELS.get(event.status, event.status),
         "note": event.note or "",
+        "carrier": event.carrier or "",
         "timestamp": _iso(event.created_at),
     }
 

@@ -3,14 +3,16 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Role
+from .models import Role, TermsAndConditions
 from .permissions import IsAdministrador
 from .serializers import (
     ChangePasswordSerializer,
     CustomTokenObtainPairSerializer,
     SelfProfileSerializer,
+    TermsSerializer,
     UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
@@ -21,6 +23,26 @@ User = get_user_model()
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+class TermsView(APIView):
+    """
+    Terminos y condiciones de compra. Gestion restringida al rol Administrador.
+      GET /api/terms/  -> contenido actual
+      PUT /api/terms/  -> actualiza el contenido
+    """
+
+    permission_classes = [IsAdministrador]
+
+    def get(self, request):
+        return Response(TermsSerializer(TermsAndConditions.load()).data)
+
+    def put(self, request):
+        terms = TermsAndConditions.load()
+        ser = TermsSerializer(terms, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save(updated_by=request.user)
+        return Response(ser.data)
 
 
 class UserViewSet(viewsets.ModelViewSet):

@@ -96,7 +96,7 @@ class TrackingEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrackingEvent
         fields = [
-            "id", "status", "status_display", "note",
+            "id", "status", "status_display", "note", "carrier",
             "created_by_name", "created_at",
         ]
         read_only_fields = fields

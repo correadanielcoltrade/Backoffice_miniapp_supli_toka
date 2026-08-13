@@ -2,7 +2,24 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from .models import TermsAndConditions
+
 User = get_user_model()
+
+
+class TermsSerializer(serializers.ModelSerializer):
+    """Terminos y condiciones de compra para el back office."""
+
+    updated_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TermsAndConditions
+        fields = ["content", "updated_at", "updated_by_name"]
+        read_only_fields = ["updated_at", "updated_by_name"]
+
+    def get_updated_by_name(self, obj) -> str:
+        u = obj.updated_by
+        return (u.get_full_name() or u.username) if u else ""
 
 
 class UserSerializer(serializers.ModelSerializer):

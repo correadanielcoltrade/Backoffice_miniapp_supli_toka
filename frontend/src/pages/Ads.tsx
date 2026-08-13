@@ -18,6 +18,39 @@ const targetSelectStyle: React.CSSProperties = {
   background: "#fff",
 };
 
+const scheduleInputStyle: React.CSSProperties = {
+  padding: "6px 8px",
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  fontSize: 12,
+  background: "#fff",
+};
+
+// Convierte un ISO (UTC) al formato datetime-local (hora local) que usa el input.
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
+// Estado efectivo del carrusel (feedback inmediato en el cliente).
+function scheduleStatus(
+  isActive: boolean,
+  from: string,
+  until: string
+): { label: string; badge: string } {
+  if (!isActive) return { label: "Inactivo", badge: "gray" };
+  const now = Date.now();
+  if (from && new Date(from).getTime() > now)
+    return { label: "Programado", badge: "amber" };
+  if (until && new Date(until).getTime() < now)
+    return { label: "Vencido", badge: "red" };
+  return { label: "Activo ahora", badge: "green" };
+}
+
 // Dimensiones EXACTAS del banner (deben coincidir con BANNER_WIDTH/BANNER_HEIGHT
 // del backend en apps/ads/models.py). Fuente unica en lib/imageValidation.
 const BANNER_RULE = IMAGE_RULES.banner;
@@ -64,14 +97,6 @@ export default function Ads() {
       setActionError(
         `No se pudo subir el banner. Verifica que la imagen mida ${BANNER_RULE.width}×${BANNER_RULE.height} px.`
       );
-    }
-  }
-
-  async function updateLink(imageId: number, url: string) {
-    try {
-      await api.patch(`/carousel-images/${imageId}/`, { link_url: url });
-    } catch {
-      setActionError("No se pudo guardar el enlace del banner.");
     }
   }
 
@@ -179,6 +204,8 @@ export default function Ads() {
             </div>
           </div>
 
+          <CarouselSchedule carousel={c} onError={setActionError} />
+
           <div className="slot-grid">
             {[0, 1, 2, 3].map((slot) => {
               const img = c.images.find((im) => im.position === slot) ?? c.images[slot];
@@ -247,28 +274,13 @@ export default function Ads() {
                     )}
                   </div>
                   {img && (
-                    <>
-                      <input
-                        type="url"
-                        placeholder="Enlace de destino (https://…)"
-                        defaultValue={img.link_url}
-                        onBlur={(e) => updateLink(img.id, e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "7px 9px",
-                          borderRadius: 8,
-                          border: "1px solid var(--border)",
-                          fontSize: 12,
-                        }}
-                      />
-                      <BannerTarget
-                        image={img}
-                        categories={categories}
-                        brands={brands}
-                        products={products}
-                        onError={setActionError}
-                      />
-                    </>
+                    <BannerTarget
+                      image={img}
+                      categories={categories}
+                      brands={brands}
+                      products={products}
+                      onError={setActionError}
+                    />
                   )}
                 </div>
               );
@@ -279,11 +291,111 @@ export default function Ads() {
             <b>
               {BANNER_RULE.width}×{BANNER_RULE.height} px
             </b>{" "}
-            o será rechazada. El enlace y la función del tap se guardan solos.
+            o será rechazada. La función del tap se guarda sola.
           </p>
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * Programación de vigencia del carrusel: fecha/hora de activación y de
+ * desactivación. La mini app sirve sus banners solo si está activo (interruptor)
+ * Y estamos dentro de la ventana. Se guarda solo al cambiar las fechas.
+ */
+function CarouselSchedule({
+  carousel,
+  onError,
+}: {
+  carousel: Carousel;
+  onError: (msg: string) => void;
+}) {
+  const [from, setFrom] = useState(toLocalInput(carousel.active_from));
+  const [until, setUntil] = useState(toLocalInput(carousel.active_until));
+  const [saving, setSaving] = useState(false);
+  const status = scheduleStatus(carousel.is_active, from, until);
+
+  async function save(nextFrom: string, nextUntil: string) {
+    setSaving(true);
+    onError("");
+    try {
+      await api.patch(`/carousels/${carousel.id}/`, {
+        active_from: nextFrom || null,
+        active_until: nextUntil || null,
+      });
+    } catch (err: any) {
+      const detail = err.response?.data?.active_until?.[0];
+      onError(detail ?? "No se pudo guardar la programación del carrusel.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-end",
+        gap: 12,
+        flexWrap: "wrap",
+        margin: "4px 0 14px",
+        padding: "10px 12px",
+        background: "#f7faff",
+        borderRadius: 10,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <label className="muted" style={{ fontSize: 11 }}>
+          Activar desde
+        </label>
+        <input
+          type="datetime-local"
+          value={from}
+          style={scheduleInputStyle}
+          onChange={(e) => {
+            setFrom(e.target.value);
+            save(e.target.value, until);
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <label className="muted" style={{ fontSize: 11 }}>
+          Desactivar el
+        </label>
+        <input
+          type="datetime-local"
+          value={until}
+          style={scheduleInputStyle}
+          onChange={(e) => {
+            setUntil(e.target.value);
+            save(from, e.target.value);
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 30 }}>
+        <span className={"badge " + status.badge}>{status.label}</span>
+        {saving && (
+          <span className="muted" style={{ fontSize: 11 }}>
+            guardando…
+          </span>
+        )}
+      </div>
+      {(from || until) && (
+        <button
+          type="button"
+          className="btn secondary"
+          style={{ fontSize: 12, padding: "5px 10px" }}
+          onClick={() => {
+            setFrom("");
+            setUntil("");
+            save("", "");
+          }}
+        >
+          Quitar programación
+        </button>
+      )}
+    </div>
   );
 }
 

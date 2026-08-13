@@ -19,7 +19,13 @@ class Carousel(models.Model):
     # el carrusel usa esas mismas dimensiones por defecto; ya no se piden al crear.
     width = models.PositiveIntegerField("ancho (px)", default=BANNER_WIDTH)
     height = models.PositiveIntegerField("alto (px)", default=BANNER_HEIGHT)
+    # Interruptor maestro manual.
     is_active = models.BooleanField("activo", default=True)
+    # Programacion de vigencia (opcional). El carrusel se sirve a la mini app solo
+    # si is_active Y estamos dentro de la ventana [active_from, active_until].
+    # Cualquiera de las dos puede quedar vacia (sin limite por ese lado).
+    active_from = models.DateTimeField("activar desde", null=True, blank=True)
+    active_until = models.DateTimeField("desactivar el", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -30,6 +36,25 @@ class Carousel(models.Model):
 
     def __str__(self):
         return self.name
+
+    def schedule_status(self, now=None):
+        """
+        Estado EFECTIVO del carrusel considerando el interruptor y la ventana:
+          INACTIVE  -> apagado manualmente (is_active=False).
+          SCHEDULED -> activo pero aun no llega active_from.
+          EXPIRED   -> activo pero ya paso active_until.
+          ACTIVE    -> se esta sirviendo ahora mismo.
+        """
+        from django.utils import timezone
+
+        if not self.is_active:
+            return "INACTIVE"
+        now = now or timezone.now()
+        if self.active_from and now < self.active_from:
+            return "SCHEDULED"
+        if self.active_until and now > self.active_until:
+            return "EXPIRED"
+        return "ACTIVE"
 
 
 class CarouselImage(models.Model):

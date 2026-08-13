@@ -238,6 +238,10 @@ class TrackingEvent(models.Model):
         "nota / novedad", blank=True, default="",
         help_text="Detalle del paso; obligatorio describir la Novedad.",
     )
+    carrier = models.CharField(
+        "transportadora", max_length=120, blank=True, default="",
+        help_text="Transportadora que llevaba el pedido en este paso (snapshot).",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

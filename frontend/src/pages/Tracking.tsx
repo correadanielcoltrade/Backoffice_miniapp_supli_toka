@@ -214,6 +214,11 @@ export default function Tracking() {
                         {ev.note && (
                           <div style={{ fontSize: 13, marginTop: 4 }}>{ev.note}</div>
                         )}
+                        {ev.carrier && (
+                          <div style={{ fontSize: 12, marginTop: 3 }}>
+                            🚚 Transportadora: <b>{ev.carrier}</b>
+                          </div>
+                        )}
                         {ev.created_by_name && (
                           <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
                             por {ev.created_by_name}

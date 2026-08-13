@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useList } from "../api/useList";
 import type { User } from "../api/types";
@@ -84,6 +84,7 @@ export default function Users() {
   }
 
   return (
+    <>
     <div className="card">
       <div className="section-head">
         <h2>Administrador de Usuarios y Roles</h2>
@@ -235,6 +236,9 @@ export default function Users() {
         </>
       )}
     </div>
+
+    <TermsSection />
+    </>
   );
 }
 
@@ -253,6 +257,115 @@ function Input({
     <div className="field">
       <label>{label}</label>
       <input type={type} value={v} onChange={(e) => on(e.target.value)} />
+    </div>
+  );
+}
+
+interface Terms {
+  content: string;
+  updated_at: string | null;
+  updated_by_name: string;
+}
+
+/**
+ * Gestión de los Términos y Condiciones de compra (texto único que se sirve a la
+ * mini app vía GET /v1/content/terms). Solo el Administrador puede editarlos.
+ */
+function TermsSection() {
+  const [content, setContent] = useState("");
+  const [meta, setMeta] = useState<Pick<Terms, "updated_at" | "updated_by_name">>({
+    updated_at: null,
+    updated_by_name: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    api
+      .get<Terms>("/terms/")
+      .then(({ data }) => {
+        setContent(data.content);
+        setMeta({
+          updated_at: data.updated_at,
+          updated_by_name: data.updated_by_name,
+        });
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setMsg("");
+    try {
+      const { data } = await api.put<Terms>("/terms/", { content });
+      setMeta({
+        updated_at: data.updated_at,
+        updated_by_name: data.updated_by_name,
+      });
+      setMsg("Términos y condiciones guardados.");
+    } catch {
+      setMsg("No se pudieron guardar los términos.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 20 }}>
+      <div className="section-head">
+        <h2>Términos y Condiciones de Compra</h2>
+        {meta.updated_at && (
+          <span className="muted" style={{ fontSize: 12 }}>
+            Última actualización:{" "}
+            {new Date(meta.updated_at).toLocaleString("es-MX", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+            {meta.updated_by_name ? ` · por ${meta.updated_by_name}` : ""}
+          </span>
+        )}
+      </div>
+      <p className="muted" style={{ marginTop: 0, marginBottom: 12, fontSize: 13 }}>
+        Este texto es el que la mini app muestra al cliente (p. ej. antes de
+        confirmar la compra). Se actualiza en tiempo real para la app.
+      </p>
+
+      {loading ? (
+        <div className="loading">Cargando…</div>
+      ) : (
+        <>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={14}
+            placeholder="Escribe aquí los términos y condiciones de compra…"
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              fontFamily: "inherit",
+              fontSize: 14,
+              lineHeight: 1.5,
+              resize: "vertical",
+            }}
+          />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginTop: 12,
+            }}
+          >
+            <button className="btn" onClick={save} disabled={saving}>
+              {saving ? "Guardando…" : "Guardar términos"}
+            </button>
+            {msg && <span className="muted">{msg}</span>}
+          </div>
+        </>
+      )}
     </div>
   );
 }

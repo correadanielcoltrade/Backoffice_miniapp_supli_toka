@@ -14,7 +14,7 @@ from .views_catalog import (
     ProductDetailView,
     ProductsView,
 )
-from .views_content import BannersView
+from .views_content import BannersView, TermsView
 from .views_location import (
     LocationByZipView,
     MunicipalitiesView,
@@ -46,6 +46,8 @@ urlpatterns = [
     ),
     # Endpoint 3 - Banners
     path("content/banners", BannersView.as_view(), name="miniapp-banners"),
+    # Terminos y condiciones de compra (texto para la mini app)
+    path("content/terms", TermsView.as_view(), name="miniapp-terms"),
     # Endpoint 4 - Categorias
     path("catalog/categories", CategoriesView.as_view(), name="miniapp-categories"),
     # Endpoint 5 - Marcas

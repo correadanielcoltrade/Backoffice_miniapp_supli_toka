@@ -104,6 +104,8 @@ class CarouselImageSerializer(serializers.ModelSerializer):
 
 class CarouselSerializer(serializers.ModelSerializer):
     images = CarouselImageSerializer(many=True, read_only=True)
+    # Estado efectivo (ACTIVE/SCHEDULED/EXPIRED/INACTIVE) segun interruptor + ventana.
+    schedule_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Carousel
@@ -113,8 +115,23 @@ class CarouselSerializer(serializers.ModelSerializer):
             "width",
             "height",
             "is_active",
+            "active_from",
+            "active_until",
+            "schedule_status",
             "images",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "schedule_status", "created_at", "updated_at"]
+
+    def get_schedule_status(self, obj) -> str:
+        return obj.schedule_status()
+
+    def validate(self, attrs):
+        start = attrs.get("active_from", getattr(self.instance, "active_from", None))
+        end = attrs.get("active_until", getattr(self.instance, "active_until", None))
+        if start and end and end <= start:
+            raise serializers.ValidationError({
+                "active_until": "La fecha de desactivacion debe ser posterior a la de activacion."
+            })
+        return attrs
